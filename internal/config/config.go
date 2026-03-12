@@ -19,6 +19,7 @@ type WorktreeConfig struct {
 type RepositoryConfig struct {
 	RepoURL       string                    `toml:"repo_url"`
 	DefaultBranch string                    `toml:"default_branch"`
+	BasePath      string                    `toml:"base_path,omitempty"`
 	Worktrees     map[string]WorktreeConfig `toml:"worktrees,omitempty"`
 }
 

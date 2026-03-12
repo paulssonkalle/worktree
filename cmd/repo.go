@@ -21,7 +21,8 @@ var repoAddCmd = &cobra.Command{
 	Args:  exactArgs("name", "repo-url"),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		defaultBranch, _ := cmd.Flags().GetString("default-branch")
-		return repository.Add(args[0], args[1], defaultBranch)
+		basePath, _ := cmd.Flags().GetString("base-path")
+		return repository.Add(args[0], args[1], defaultBranch, basePath)
 	},
 }
 
@@ -78,5 +79,6 @@ func init() {
 	repoCmd.AddCommand(repoListCmd)
 
 	repoAddCmd.Flags().String("default-branch", "", "default branch name (auto-detected if not set)")
+	repoAddCmd.Flags().String("base-path", "", "override the global base path for this repository")
 	repoRemoveCmd.Flags().Bool("force", false, "force removal of repository and all worktrees")
 }

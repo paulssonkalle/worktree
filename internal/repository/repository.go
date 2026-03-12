@@ -11,7 +11,7 @@ import (
 )
 
 // Add creates a new repository by cloning a bare repo.
-func Add(name, repoURL, defaultBranch string) error {
+func Add(name, repoURL, defaultBranch, basePath string) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
@@ -29,10 +29,18 @@ func Add(name, repoURL, defaultBranch string) error {
 		return fmt.Errorf("repository %q already exists", name)
 	}
 
+	// Store initial config so RepositoryDir() can resolve the per-repo base path.
+	cfg.Repositories[name] = config.RepositoryConfig{
+		RepoURL:   repoURL,
+		BasePath:  basePath,
+		Worktrees: make(map[string]config.WorktreeConfig),
+	}
+
 	repoDir := RepositoryDir(name)
 	bareDir := BareDir(name)
 
 	if err := os.MkdirAll(repoDir, 0o755); err != nil {
+		delete(cfg.Repositories, name)
 		return fmt.Errorf("creating repository directory: %w", err)
 	}
 
@@ -40,6 +48,7 @@ func Add(name, repoURL, defaultBranch string) error {
 	if err := git.CloneBare(repoURL, bareDir); err != nil {
 		// Clean up on failure
 		os.RemoveAll(repoDir)
+		delete(cfg.Repositories, name)
 		return fmt.Errorf("cloning repository: %w", err)
 	}
 
@@ -54,12 +63,6 @@ func Add(name, repoURL, defaultBranch string) error {
 		}
 	}
 
-	cfg.Repositories[name] = config.RepositoryConfig{
-		RepoURL:       repoURL,
-		DefaultBranch: defaultBranch,
-		Worktrees:     make(map[string]config.WorktreeConfig),
-	}
-
 	// Create a worktree for the default branch and pin it
 	wtPath := filepath.Join(repoDir, config.SanitizeBranchName(defaultBranch))
 	fmt.Printf("Creating worktree for default branch %q...\n", defaultBranch)
@@ -69,6 +72,7 @@ func Add(name, repoURL, defaultBranch string) error {
 	cfg.Repositories[name] = config.RepositoryConfig{
 		RepoURL:       repoURL,
 		DefaultBranch: defaultBranch,
+		BasePath:      basePath,
 		Worktrees: map[string]config.WorktreeConfig{
 			config.SanitizeBranchName(defaultBranch): {Pinned: true},
 		},
@@ -142,8 +146,13 @@ func Get(name string) (*config.RepositoryConfig, error) {
 }
 
 // RepositoryDir returns the repository's directory path.
+// If the repository has a per-repo BasePath configured, it takes precedence
+// over the global BasePath.
 func RepositoryDir(name string) string {
 	cfg, _ := config.Load()
+	if repo, exists := cfg.Repositories[name]; exists && repo.BasePath != "" {
+		return filepath.Join(config.ExpandPath(repo.BasePath), name)
+	}
 	base := config.ExpandPath(cfg.BasePath)
 	return filepath.Join(base, name)
 }

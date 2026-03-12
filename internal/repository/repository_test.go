@@ -73,7 +73,7 @@ func writeFile(t *testing.T, path, content string) {
 func TestAdd(t *testing.T) {
 	basePath, srcDir := setupTestEnv(t)
 
-	if err := Add("myrepo", srcDir, ""); err != nil {
+	if err := Add("myrepo", srcDir, "", ""); err != nil {
 		t.Fatalf("Add() error: %v", err)
 	}
 
@@ -125,7 +125,7 @@ func TestAdd(t *testing.T) {
 func TestAddWithExplicitDefaultBranch(t *testing.T) {
 	_, srcDir := setupTestEnv(t)
 
-	if err := Add("myrepo", srcDir, "main"); err != nil {
+	if err := Add("myrepo", srcDir, "main", ""); err != nil {
 		t.Fatalf("Add() error: %v", err)
 	}
 
@@ -140,11 +140,11 @@ func TestAddWithExplicitDefaultBranch(t *testing.T) {
 func TestAddDuplicateRepo(t *testing.T) {
 	_, srcDir := setupTestEnv(t)
 
-	if err := Add("myrepo", srcDir, ""); err != nil {
+	if err := Add("myrepo", srcDir, "", ""); err != nil {
 		t.Fatalf("first Add() error: %v", err)
 	}
 
-	err := Add("myrepo", srcDir, "")
+	err := Add("myrepo", srcDir, "", "")
 	if err == nil {
 		t.Error("second Add() returned nil error, want duplicate error")
 	}
@@ -153,7 +153,7 @@ func TestAddDuplicateRepo(t *testing.T) {
 func TestAddInvalidRepo(t *testing.T) {
 	setupTestEnv(t)
 
-	err := Add("bad-repo", "/nonexistent/repo", "main")
+	err := Add("bad-repo", "/nonexistent/repo", "main", "")
 	if err == nil {
 		t.Error("Add() with invalid repo URL returned nil error, want error")
 	}
@@ -162,7 +162,7 @@ func TestAddInvalidRepo(t *testing.T) {
 func TestRemove(t *testing.T) {
 	basePath, srcDir := setupTestEnv(t)
 
-	if err := Add("myrepo", srcDir, ""); err != nil {
+	if err := Add("myrepo", srcDir, "", ""); err != nil {
 		t.Fatalf("Add() error: %v", err)
 	}
 
@@ -213,11 +213,11 @@ func TestList(t *testing.T) {
 	}
 
 	// Add two repositories
-	if err := Add("beta-repo", srcDir, ""); err != nil {
+	if err := Add("beta-repo", srcDir, "", ""); err != nil {
 		t.Fatalf("Add(beta) error: %v", err)
 	}
 	config.Reload()
-	if err := Add("alpha-repo", srcDir, ""); err != nil {
+	if err := Add("alpha-repo", srcDir, "", ""); err != nil {
 		t.Fatalf("Add(alpha) error: %v", err)
 	}
 
@@ -242,7 +242,7 @@ func TestList(t *testing.T) {
 func TestGet(t *testing.T) {
 	_, srcDir := setupTestEnv(t)
 
-	if err := Add("myrepo", srcDir, ""); err != nil {
+	if err := Add("myrepo", srcDir, "", ""); err != nil {
 		t.Fatalf("Add() error: %v", err)
 	}
 
@@ -268,12 +268,110 @@ func TestGetNonexistent(t *testing.T) {
 	}
 }
 
+func TestAddWithCustomBasePath(t *testing.T) {
+	_, srcDir := setupTestEnv(t)
+	tmpDir := t.TempDir()
+	customBase := filepath.Join(tmpDir, "custom-worktrees")
+
+	if err := Add("custom-repo", srcDir, "", customBase); err != nil {
+		t.Fatalf("Add() error: %v", err)
+	}
+
+	// Verify the repository was created under the custom base path
+	repoDir := filepath.Join(customBase, "custom-repo")
+	if _, err := os.Stat(repoDir); os.IsNotExist(err) {
+		t.Error("repository directory was not created under custom base path")
+	}
+
+	// Verify bare repo exists under custom base
+	bareDir := filepath.Join(repoDir, ".bare")
+	if _, err := os.Stat(filepath.Join(bareDir, "HEAD")); os.IsNotExist(err) {
+		t.Error("bare repo was not created under custom base path")
+	}
+
+	// Verify default branch worktree was created under custom base
+	mainWT := filepath.Join(repoDir, "main")
+	if _, err := os.Stat(mainWT); os.IsNotExist(err) {
+		t.Error("default branch worktree was not created under custom base path")
+	}
+
+	// Verify config stores the custom base path
+	config.Reload()
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load config: %v", err)
+	}
+	repo, exists := cfg.Repositories["custom-repo"]
+	if !exists {
+		t.Fatal("repository not found in config after Add()")
+	}
+	if repo.BasePath != customBase {
+		t.Errorf("BasePath = %q, want %q", repo.BasePath, customBase)
+	}
+}
+
 func TestRepositoryDir(t *testing.T) {
 	basePath, _ := setupTestEnv(t)
 
 	config.Reload()
 	dir := RepositoryDir("testrepo")
 	expected := filepath.Join(basePath, "testrepo")
+	if dir != expected {
+		t.Errorf("RepositoryDir() = %q, want %q", dir, expected)
+	}
+}
+
+func TestRepositoryDirWithPerRepoBasePath(t *testing.T) {
+	_, _ = setupTestEnv(t)
+	tmpDir := t.TempDir()
+	customBase := filepath.Join(tmpDir, "per-repo-base")
+
+	// Manually set up a repo config with a per-repo base path
+	config.Reload()
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load config: %v", err)
+	}
+	cfg.Repositories["custom-base-repo"] = config.RepositoryConfig{
+		RepoURL:       "https://example.com/repo.git",
+		DefaultBranch: "main",
+		BasePath:      customBase,
+		Worktrees:     make(map[string]config.WorktreeConfig),
+	}
+	if err := config.Save(cfg); err != nil {
+		t.Fatalf("Save config: %v", err)
+	}
+	config.Reload()
+
+	dir := RepositoryDir("custom-base-repo")
+	expected := filepath.Join(customBase, "custom-base-repo")
+	if dir != expected {
+		t.Errorf("RepositoryDir() = %q, want %q", dir, expected)
+	}
+}
+
+func TestRepositoryDirFallsBackToGlobalBasePath(t *testing.T) {
+	basePath, _ := setupTestEnv(t)
+
+	// Repo with empty BasePath should use global
+	config.Reload()
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load config: %v", err)
+	}
+	cfg.Repositories["no-base-repo"] = config.RepositoryConfig{
+		RepoURL:       "https://example.com/repo.git",
+		DefaultBranch: "main",
+		BasePath:      "",
+		Worktrees:     make(map[string]config.WorktreeConfig),
+	}
+	if err := config.Save(cfg); err != nil {
+		t.Fatalf("Save config: %v", err)
+	}
+	config.Reload()
+
+	dir := RepositoryDir("no-base-repo")
+	expected := filepath.Join(basePath, "no-base-repo")
 	if dir != expected {
 		t.Errorf("RepositoryDir() = %q, want %q", dir, expected)
 	}

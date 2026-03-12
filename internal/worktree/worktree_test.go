@@ -42,7 +42,7 @@ func setupTestEnv(t *testing.T) (string, string) {
 	runGit(t, srcDir, "commit", "-m", "initial commit")
 
 	// Add the repository (this clones bare + creates "main" worktree pinned)
-	if err := repository.Add("testproj", srcDir, ""); err != nil {
+	if err := repository.Add("testproj", srcDir, "", ""); err != nil {
 		t.Fatalf("repository.Add() error: %v", err)
 	}
 	config.Reload()
@@ -170,7 +170,7 @@ func TestAddRemoteOnlyBranch(t *testing.T) {
 	runGit(t, srcDir, "commit", "-m", "initial commit")
 
 	repoName := "testproj"
-	if err := repository.Add(repoName, srcDir, ""); err != nil {
+	if err := repository.Add(repoName, srcDir, "", ""); err != nil {
 		t.Fatalf("repository.Add() error: %v", err)
 	}
 	config.Reload()
@@ -321,11 +321,11 @@ func TestListAll(t *testing.T) {
 	runGit(t, srcDir, "commit", "-m", "init")
 
 	// Add two repositories
-	if err := repository.Add("repo-a", srcDir, ""); err != nil {
+	if err := repository.Add("repo-a", srcDir, "", ""); err != nil {
 		t.Fatalf("repository.Add(repo-a) error: %v", err)
 	}
 	config.Reload()
-	if err := repository.Add("repo-b", srcDir, ""); err != nil {
+	if err := repository.Add("repo-b", srcDir, "", ""); err != nil {
 		t.Fatalf("repository.Add(repo-b) error: %v", err)
 	}
 	config.Reload()

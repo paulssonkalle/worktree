@@ -379,6 +379,86 @@ func TestLoadInvalidTOML(t *testing.T) {
 	}
 }
 
+func TestSaveAndLoadWithPerRepoBasePath(t *testing.T) {
+	setupTestConfig(t)
+
+	original := &Config{
+		BasePath:             "~/test-trees",
+		Editor:               "code",
+		CleanupThresholdDays: 30,
+		Repositories: map[string]RepositoryConfig{
+			"repo-with-base": {
+				RepoURL:       "https://github.com/test/repo.git",
+				DefaultBranch: "main",
+				BasePath:      "/custom/path/to/worktrees",
+				Worktrees: map[string]WorktreeConfig{
+					"main": {Pinned: true},
+				},
+			},
+			"repo-without-base": {
+				RepoURL:       "https://github.com/test/other.git",
+				DefaultBranch: "develop",
+				Worktrees: map[string]WorktreeConfig{
+					"develop": {Pinned: true},
+				},
+			},
+		},
+	}
+
+	if err := Save(original); err != nil {
+		t.Fatalf("Save() error: %v", err)
+	}
+
+	Reload()
+	loaded, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+
+	// Repo with custom base path should preserve it
+	repoWith := loaded.Repositories["repo-with-base"]
+	if repoWith.BasePath != "/custom/path/to/worktrees" {
+		t.Errorf("repo-with-base BasePath = %q, want %q", repoWith.BasePath, "/custom/path/to/worktrees")
+	}
+
+	// Repo without custom base path should have empty string
+	repoWithout := loaded.Repositories["repo-without-base"]
+	if repoWithout.BasePath != "" {
+		t.Errorf("repo-without-base BasePath = %q, want empty string", repoWithout.BasePath)
+	}
+}
+
+func TestLoadExistingConfigWithPerRepoBasePath(t *testing.T) {
+	path := setupTestConfig(t)
+
+	content := `base_path = "~/worktrees"
+editor = "code"
+cleanup_threshold_days = 30
+
+[repositories.myapp]
+repo_url = "git@github.com:user/myapp.git"
+default_branch = "main"
+base_path = "/opt/worktrees"
+
+[repositories.myapp.worktrees.main]
+pinned = true
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	Reload()
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+
+	repo := cfg.Repositories["myapp"]
+	if repo.BasePath != "/opt/worktrees" {
+		t.Errorf("BasePath = %q, want %q", repo.BasePath, "/opt/worktrees")
+	}
+}
+
 func TestSanitizeBranchName(t *testing.T) {
 	tests := []struct {
 		name     string
