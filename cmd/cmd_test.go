@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -154,6 +155,146 @@ func TestFormatDuration(t *testing.T) {
 			result := formatDuration(tt.duration)
 			if result != tt.expected {
 				t.Errorf("formatDuration(%v) = %q, want %q", tt.duration, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestFormatFzfInput(t *testing.T) {
+	entries := []switchEntry{
+		{repo: "myapp", worktree: "main", branch: "main", path: "/home/user/worktrees/myapp/main"},
+		{repo: "myapp", worktree: "feature-x", branch: "feature-x", path: "/home/user/worktrees/myapp/feature-x"},
+		{repo: "api", worktree: "develop", branch: "develop", path: "/home/user/worktrees/api/develop"},
+	}
+
+	result := formatFzfInput(entries)
+	lines := strings.Split(strings.TrimRight(result, "\n"), "\n")
+
+	if len(lines) != 3 {
+		t.Fatalf("expected 3 lines, got %d", len(lines))
+	}
+
+	// Columns should be padded to align. Max widths: repo=5, worktree=9, branch=9
+	// Format: "%-5s  %-9s  %-9s\t<path>"
+	expected := []string{
+		"myapp  main       main     \t/home/user/worktrees/myapp/main",
+		"myapp  feature-x  feature-x\t/home/user/worktrees/myapp/feature-x",
+		"api    develop    develop  \t/home/user/worktrees/api/develop",
+	}
+
+	for i, line := range lines {
+		if line != expected[i] {
+			t.Errorf("line %d:\n  got  %q\n  want %q", i, line, expected[i])
+		}
+	}
+}
+
+func TestFormatFzfInputEmpty(t *testing.T) {
+	result := formatFzfInput(nil)
+	if result != "" {
+		t.Errorf("expected empty string, got %q", result)
+	}
+}
+
+func TestFormatFzfHeader(t *testing.T) {
+	entries := []switchEntry{
+		{repo: "myapp", worktree: "main", branch: "main"},
+		{repo: "myapp", worktree: "feature-x", branch: "feature-x"},
+	}
+	repoW, wtW, branchW := columnWidths(entries)
+	header := formatFzfHeader(repoW, wtW, branchW)
+
+	// Header should be aligned with the same widths as the data
+	expected := "REPO   WORKTREE   BRANCH   "
+	if header != expected {
+		t.Errorf("header:\n  got  %q\n  want %q", header, expected)
+	}
+}
+
+func TestColumnWidths(t *testing.T) {
+	entries := []switchEntry{
+		{repo: "ab", worktree: "x", branch: "short"},
+		{repo: "long-repo-name", worktree: "my-worktree", branch: "b"},
+	}
+	repoW, wtW, branchW := columnWidths(entries)
+
+	// "REPO" = 4, but "long-repo-name" = 14 -> 14
+	if repoW != 14 {
+		t.Errorf("repoW = %d, want 14", repoW)
+	}
+	// "WORKTREE" = 8, but "my-worktree" = 11 -> 11
+	if wtW != 11 {
+		t.Errorf("wtW = %d, want 11", wtW)
+	}
+	// "BRANCH" = 6, but "short" = 5 -> 6 (header wins)
+	if branchW != 6 {
+		t.Errorf("branchW = %d, want 6", branchW)
+	}
+}
+
+func TestParseFzfOutput(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		wantRepo string
+		wantWT   string
+		wantBr   string
+		wantPath string
+		wantErr  bool
+	}{
+		{
+			name:     "padded line",
+			input:    "myapp  feature-x  feature-x\t/home/user/worktrees/myapp/feature-x",
+			wantRepo: "myapp",
+			wantWT:   "feature-x",
+			wantBr:   "feature-x",
+			wantPath: "/home/user/worktrees/myapp/feature-x",
+		},
+		{
+			name:     "with trailing newline",
+			input:    "api    main       main     \t/home/user/worktrees/api/main\n",
+			wantRepo: "api",
+			wantWT:   "main",
+			wantBr:   "main",
+			wantPath: "/home/user/worktrees/api/main",
+		},
+		{
+			name:    "no tab separator",
+			input:   "myapp feature-x feature-x /some/path",
+			wantErr: true,
+		},
+		{
+			name:    "too few display fields",
+			input:   "myapp\t/some/path",
+			wantErr: true,
+		},
+		{
+			name:    "empty string",
+			input:   "",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			entry, err := parseFzfOutput(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("parseFzfOutput() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr {
+				return
+			}
+			if entry.repo != tt.wantRepo {
+				t.Errorf("repo = %q, want %q", entry.repo, tt.wantRepo)
+			}
+			if entry.worktree != tt.wantWT {
+				t.Errorf("worktree = %q, want %q", entry.worktree, tt.wantWT)
+			}
+			if entry.branch != tt.wantBr {
+				t.Errorf("branch = %q, want %q", entry.branch, tt.wantBr)
+			}
+			if entry.path != tt.wantPath {
+				t.Errorf("path = %q, want %q", entry.path, tt.wantPath)
 			}
 		})
 	}
