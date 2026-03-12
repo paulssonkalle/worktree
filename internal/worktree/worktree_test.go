@@ -523,6 +523,42 @@ func TestWorktreeDir(t *testing.T) {
 	}
 }
 
+func TestWorktreeDirSanitizesSlashes(t *testing.T) {
+	basePath, repoName := setupTestEnv(t)
+
+	tests := []struct {
+		name       string
+		branchName string
+		wantDir    string
+	}{
+		{
+			name:       "single slash",
+			branchName: "feature/login",
+			wantDir:    "feature-login",
+		},
+		{
+			name:       "multiple slashes",
+			branchName: "feature/TCM-274/implement-spring-security",
+			wantDir:    "feature-TCM-274-implement-spring-security",
+		},
+		{
+			name:       "no slashes unchanged",
+			branchName: "main",
+			wantDir:    "main",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := WorktreeDir(repoName, tt.branchName)
+			expected := filepath.Join(basePath, repoName, tt.wantDir)
+			if dir != expected {
+				t.Errorf("WorktreeDir(%q, %q) = %q, want %q", repoName, tt.branchName, dir, expected)
+			}
+		})
+	}
+}
+
 func TestPruneSkipsPinnedAndDefaultBranch(t *testing.T) {
 	_, repoName := setupTestEnv(t)
 

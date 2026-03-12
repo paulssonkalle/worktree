@@ -61,7 +61,7 @@ func Add(name, repoURL, defaultBranch string) error {
 	}
 
 	// Create a worktree for the default branch and pin it
-	wtPath := filepath.Join(repoDir, defaultBranch)
+	wtPath := filepath.Join(repoDir, config.SanitizeBranchName(defaultBranch))
 	fmt.Printf("Creating worktree for default branch %q...\n", defaultBranch)
 	if err := git.AddWorktreeExisting(bareDir, wtPath, defaultBranch); err != nil {
 		return fmt.Errorf("creating default branch worktree: %w", err)
@@ -70,7 +70,7 @@ func Add(name, repoURL, defaultBranch string) error {
 		RepoURL:       repoURL,
 		DefaultBranch: defaultBranch,
 		Worktrees: map[string]config.WorktreeConfig{
-			defaultBranch: {Pinned: true},
+			config.SanitizeBranchName(defaultBranch): {Pinned: true},
 		},
 	}
 

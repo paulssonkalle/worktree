@@ -78,7 +78,7 @@ func Add(repoName, branchName, baseBranch string) error {
 	if repo.Worktrees == nil {
 		repo.Worktrees = make(map[string]config.WorktreeConfig)
 	}
-	repo.Worktrees[branchName] = config.WorktreeConfig{Pinned: false}
+	repo.Worktrees[config.SanitizeBranchName(branchName)] = config.WorktreeConfig{Pinned: false}
 	cfg.Repositories[repoName] = repo
 	if err := config.Save(cfg); err != nil {
 		return fmt.Errorf("saving config: %w", err)
@@ -110,7 +110,7 @@ func Remove(repoName, worktreeName string) error {
 	// Clean up directory if it still exists
 	os.RemoveAll(wtPath)
 
-	delete(repo.Worktrees, worktreeName)
+	delete(repo.Worktrees, config.SanitizeBranchName(worktreeName))
 	cfg.Repositories[repoName] = repo
 	if err := config.Save(cfg); err != nil {
 		return fmt.Errorf("saving config: %w", err)
@@ -210,7 +210,7 @@ func setPinned(repoName, worktreeName string, pinned bool) error {
 		repo.Worktrees = make(map[string]config.WorktreeConfig)
 	}
 
-	wtCfg, exists := repo.Worktrees[worktreeName]
+	wtCfg, exists := repo.Worktrees[config.SanitizeBranchName(worktreeName)]
 	if !exists {
 		// Check if the worktree actually exists on disk
 		wtPath := WorktreeDir(repoName, worktreeName)
@@ -221,7 +221,7 @@ func setPinned(repoName, worktreeName string, pinned bool) error {
 	}
 
 	wtCfg.Pinned = pinned
-	repo.Worktrees[worktreeName] = wtCfg
+	repo.Worktrees[config.SanitizeBranchName(worktreeName)] = wtCfg
 	cfg.Repositories[repoName] = repo
 
 	if err := config.Save(cfg); err != nil {
@@ -445,7 +445,7 @@ func Status(repoName, worktreeName string) (*Info, error) {
 		return nil, fmt.Errorf("getting status: %w", err)
 	}
 
-	wtCfg := repo.Worktrees[worktreeName]
+	wtCfg := repo.Worktrees[config.SanitizeBranchName(worktreeName)]
 
 	return &Info{
 		Repo:   repoName,
@@ -462,5 +462,5 @@ func Status(repoName, worktreeName string) (*Info, error) {
 
 // WorktreeDir returns the path for a worktree.
 func WorktreeDir(repoName, worktreeName string) string {
-	return filepath.Join(repository.RepositoryDir(repoName), worktreeName)
+	return filepath.Join(repository.RepositoryDir(repoName), config.SanitizeBranchName(worktreeName))
 }

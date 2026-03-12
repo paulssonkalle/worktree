@@ -378,3 +378,29 @@ func TestLoadInvalidTOML(t *testing.T) {
 		t.Error("Load() returned nil error for invalid TOML, want error")
 	}
 }
+
+func TestSanitizeBranchName(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"simple name", "feature-x", "feature-x"},
+		{"single slash", "feature/login", "feature-login"},
+		{"multiple slashes", "feature/TCM-274/implement-spring-security", "feature-TCM-274-implement-spring-security"},
+		{"leading slash", "/leading", "-leading"},
+		{"trailing slash", "trailing/", "trailing-"},
+		{"empty string", "", ""},
+		{"no slashes", "main", "main"},
+		{"consecutive slashes", "a//b", "a--b"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := SanitizeBranchName(tt.input)
+			if result != tt.expected {
+				t.Errorf("SanitizeBranchName(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}

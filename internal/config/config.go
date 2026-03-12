@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	toml "github.com/pelletier/go-toml/v2"
@@ -134,6 +135,12 @@ func ExpandPath(path string) string {
 		return filepath.Join(home, path[1:])
 	}
 	return path
+}
+
+// SanitizeBranchName replaces "/" in branch names with "-" so they can be
+// used as flat directory names without creating nested subdirectories.
+func SanitizeBranchName(name string) string {
+	return strings.ReplaceAll(name, "/", "-")
 }
 
 func defaultConfig() *Config {
