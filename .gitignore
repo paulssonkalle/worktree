@@ -1,0 +1,17 @@
+# Binary
+worktree
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test
+coverage.out
+
+# Tools
+.opencode/
