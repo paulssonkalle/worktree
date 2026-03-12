@@ -56,9 +56,16 @@ func Add(repoName, branchName, baseBranch string) error {
 		fmt.Printf("Warning: fetch failed: %v\n", err)
 	}
 
-	// Check if branch already exists
+	// Check if branch already exists locally
 	if git.BranchExists(bareDir, branchName) {
 		fmt.Printf("Checking out existing branch %q...\n", branchName)
+		if err := git.AddWorktreeExisting(bareDir, wtPath, branchName); err != nil {
+			return fmt.Errorf("creating worktree: %w", err)
+		}
+	} else if git.RemoteBranchExists(bareDir, branchName) {
+		// Branch exists on remote but not locally - check it out so git
+		// auto-creates a local tracking branch from the remote ref.
+		fmt.Printf("Checking out remote branch %q...\n", branchName)
 		if err := git.AddWorktreeExisting(bareDir, wtPath, branchName); err != nil {
 			return fmt.Errorf("creating worktree: %w", err)
 		}

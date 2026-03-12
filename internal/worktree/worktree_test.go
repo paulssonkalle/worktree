@@ -144,6 +144,71 @@ func TestAddNonexistentRepo(t *testing.T) {
 	}
 }
 
+func TestAddRemoteOnlyBranch(t *testing.T) {
+	// Set up the environment manually so we can access srcDir.
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.toml")
+	basePath := filepath.Join(tmpDir, "worktrees")
+	config.SetConfigPath(configPath)
+
+	cfg := &config.Config{
+		BasePath:             basePath,
+		Editor:               "code",
+		CleanupThresholdDays: 30,
+		Repositories:         make(map[string]config.RepositoryConfig),
+	}
+	if err := config.Save(cfg); err != nil {
+		t.Fatalf("Save config: %v", err)
+	}
+	config.Reload()
+
+	srcDir := filepath.Join(tmpDir, "source-repo")
+	runGit(t, "", "init", srcDir)
+	runGit(t, srcDir, "checkout", "-b", "main")
+	writeFile(t, filepath.Join(srcDir, "README.md"), "# Test project")
+	runGit(t, srcDir, "add", ".")
+	runGit(t, srcDir, "commit", "-m", "initial commit")
+
+	repoName := "testproj"
+	if err := repository.Add(repoName, srcDir, ""); err != nil {
+		t.Fatalf("repository.Add() error: %v", err)
+	}
+	config.Reload()
+
+	// Create a branch in the source repo (acts as remote) that does not
+	// exist locally in the bare clone.
+	runGit(t, srcDir, "checkout", "-b", "feature/remote-only")
+	writeFile(t, filepath.Join(srcDir, "remote-file.txt"), "remote content")
+	runGit(t, srcDir, "add", ".")
+	runGit(t, srcDir, "commit", "-m", "remote only commit")
+	runGit(t, srcDir, "checkout", "main")
+
+	// Add the worktree - this should fetch and check out the remote branch
+	if err := Add(repoName, "feature/remote-only", ""); err != nil {
+		t.Fatalf("Add() error for remote-only branch: %v", err)
+	}
+
+	// Verify the worktree directory was created with sanitized name
+	wtDir := filepath.Join(basePath, repoName, "feature-remote-only")
+	if _, err := os.Stat(wtDir); os.IsNotExist(err) {
+		t.Error("worktree directory was not created for remote-only branch")
+	}
+
+	// Verify the file from the remote branch is present
+	remoteFile := filepath.Join(wtDir, "remote-file.txt")
+	if _, err := os.Stat(remoteFile); os.IsNotExist(err) {
+		t.Error("remote-file.txt not found - branch content was not checked out from remote")
+	}
+
+	// Verify config was updated with sanitized name
+	config.Reload()
+	cfg, _ = config.Load()
+	repo := cfg.Repositories[repoName]
+	if _, exists := repo.Worktrees["feature-remote-only"]; !exists {
+		t.Error("worktree not found in config after Add() with remote-only branch")
+	}
+}
+
 func TestRemove(t *testing.T) {
 	basePath, repoName := setupTestEnv(t)
 
