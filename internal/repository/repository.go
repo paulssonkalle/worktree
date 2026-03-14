@@ -8,6 +8,7 @@ import (
 
 	"github.com/paulssonkalle/worktree-cli/internal/config"
 	"github.com/paulssonkalle/worktree-cli/internal/git"
+	"github.com/paulssonkalle/worktree-cli/internal/zoxide"
 )
 
 // Add creates a new repository by cloning a bare repo.
@@ -80,6 +81,12 @@ func Add(name, repoURL, defaultBranch, basePath string) error {
 
 	if err := config.Save(cfg); err != nil {
 		return fmt.Errorf("saving config: %w", err)
+	}
+
+	if cfg.Zoxide && zoxide.IsAvailable() {
+		if err := zoxide.Add(wtPath); err != nil {
+			fmt.Printf("Warning: could not add to zoxide: %v\n", err)
+		}
 	}
 
 	fmt.Printf("Worktree %q pinned (excluded from cleanup)\n", defaultBranch)

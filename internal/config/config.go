@@ -28,6 +28,7 @@ type Config struct {
 	BasePath             string                      `toml:"base_path"`
 	Editor               string                      `toml:"editor"`
 	CleanupThresholdDays int                         `toml:"cleanup_threshold_days"`
+	Zoxide               bool                        `toml:"zoxide"`
 	Repositories         map[string]RepositoryConfig `toml:"repositories,omitempty"`
 }
 

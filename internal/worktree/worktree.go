@@ -10,6 +10,7 @@ import (
 	"github.com/paulssonkalle/worktree-cli/internal/config"
 	"github.com/paulssonkalle/worktree-cli/internal/git"
 	"github.com/paulssonkalle/worktree-cli/internal/repository"
+	"github.com/paulssonkalle/worktree-cli/internal/zoxide"
 )
 
 // Info holds display information about a worktree.
@@ -92,6 +93,13 @@ func Add(repoName, branchName, baseBranch string) error {
 	}
 
 	fmt.Printf("Worktree %q created at %s\n", branchName, wtPath)
+
+	if cfg.Zoxide && zoxide.IsAvailable() {
+		if err := zoxide.Add(wtPath); err != nil {
+			fmt.Printf("Warning: could not add to zoxide: %v\n", err)
+		}
+	}
+
 	return nil
 }
 
