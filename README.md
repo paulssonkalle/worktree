@@ -94,28 +94,90 @@ worktree completion fish | source
 
 Run `worktree completion --help` for persistent installation instructions.
 
+### Zoxide
+
+If you use [zoxide](https://github.com/ajeetdsouza/zoxide), you can have worktree
+paths automatically added so they're available via `z`:
+
+```toml
+# In ~/.config/worktree/config.toml
+zoxide = true
+```
+
+With this enabled, every `repo add` and `worktree add` automatically runs
+`zoxide add` for the new worktree path.
+
+To add all existing worktrees to zoxide in one go:
+
+```bash
+worktree zoxide sync          # all repos
+worktree zoxide sync my-app   # a specific repo
+```
+
 ## Commands
 
-| Command | Description |
+| Command | Alias | Description |
+|---|---|---|
+| `repo add <name> <url>` | | Add a repository (bare clone) |
+| `repo remove <name>` | `repo rm` | Remove a repository and all its worktrees |
+| `repo list` | `repo ls` | List configured repositories |
+| `add <repo> <branch>` | | Create a worktree for a branch |
+| `remove <repo> <worktree>` | `rm` | Remove a worktree |
+| `list [repo]` | `ls` | List worktrees |
+| `status [repo]` | | Show Git status of worktrees |
+| `switch [repo] [worktree]` | | Switch to a worktree (interactive with fzf) |
+| `open <repo> [worktree]` | | Open a worktree in your editor |
+| `fetch [repo]` | | Fetch latest from remotes |
+| `pin <repo> <worktree>` | | Pin a worktree (excluded from cleanup/prune) |
+| `unpin <repo> <worktree>` | | Unpin a worktree |
+| `cleanup` | | Remove worktrees not modified in N days |
+| `prune [repo]` | | Remove worktrees with merged/deleted branches |
+| `zoxide sync [repo]` | | Add all worktree paths to zoxide |
+| `config init` | | Create the default config file |
+| `config path` | | Print the config file path |
+| `config edit` | | Open the config file in your editor |
+| `completion <shell>` | | Generate shell completion scripts |
+
+### Global flags
+
+| Flag | Description |
 |---|---|
-| `repo add <name> <url>` | Add a repository (bare clone) |
-| `repo remove <name>` | Remove a repository and all its worktrees |
-| `repo list` | List configured repositories |
-| `add <repo> <branch>` | Create a worktree for a branch |
-| `remove <repo> <worktree>` | Remove a worktree |
-| `list [repo]` | List worktrees |
-| `status [repo]` | Show Git status of worktrees |
-| `switch [repo] [worktree]` | Switch to a worktree (interactive with fzf) |
-| `open <repo> [worktree]` | Open a worktree in your editor |
-| `fetch [repo]` | Fetch latest from remotes |
-| `pin <repo> <worktree>` | Pin a worktree (excluded from cleanup/prune) |
-| `unpin <repo> <worktree>` | Unpin a worktree |
-| `cleanup` | Remove worktrees not modified in N days |
-| `prune [repo]` | Remove worktrees with merged/deleted branches |
-| `config init` | Create the default config file |
-| `config path` | Print the config file path |
-| `config edit` | Open the config file in your editor |
-| `completion <shell>` | Generate shell completion scripts |
+| `--config <path>` | Override the config file path (default: `~/.config/worktree/config.toml`) |
+
+### Command flags
+
+**`repo add`**
+
+| Flag | Description |
+|---|---|
+| `--default-branch <name>` | Default branch name (auto-detected from remote if not set) |
+| `--base-path <path>` | Override the global base path for this repository |
+
+**`repo remove`**
+
+| Flag | Description |
+|---|---|
+| `--force` | Required. Force removal of the repository and all its worktrees |
+
+**`add`**
+
+| Flag | Description |
+|---|---|
+| `--base <branch>` | Base branch to create the new branch from (default: repo's default branch) |
+
+**`cleanup`**
+
+| Flag | Description |
+|---|---|
+| `--days <n>` | Number of days since last modification (default: from config `cleanup_threshold_days`) |
+| `--dry-run` | Preview what would be removed without actually removing |
+| `--repo <name>` | Limit cleanup to a specific repository |
+
+**`prune`**
+
+| Flag | Description |
+|---|---|
+| `--dry-run` | Preview what would be removed without actually removing |
 
 Run `worktree <command> --help` for detailed usage and flags.
 
@@ -136,11 +198,16 @@ editor = "code"
 # Worktrees not modified in this many days are eligible for removal.
 cleanup_threshold_days = 30
 
+# Automatically add new worktree paths to zoxide when created.
+# Requires zoxide to be installed (https://github.com/ajeetdsouza/zoxide).
+zoxide = false
+
 # Repositories are added automatically by 'repo add'.
 # You generally don't need to edit this section by hand.
 [repositories.my-app]
 repo_url = "git@github.com:user/my-app.git"
 default_branch = "main"
+# base_path = "~/work/projects"  # optional: overrides global base_path for this repo
 
   [repositories.my-app.worktrees.main]
   pinned = true
