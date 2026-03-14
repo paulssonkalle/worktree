@@ -113,6 +113,29 @@ func branchNames(cmd *cobra.Command, args []string, toComplete string) ([]string
 	return filtered, cobra.ShellCompDirectiveNoFileComp
 }
 
+// allBranchNames returns all branch names for a repository for shell completion.
+// Unlike branchNames, this does not filter out branches that already have a worktree.
+func allBranchNames(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	if len(args) == 0 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	repoName := args[0]
+	cfg, err := config.Load()
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	if _, exists := cfg.Repositories[repoName]; !exists {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	bareDir := repository.BareDir(repoName)
+	branches, err := git.ListBranches(bareDir)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	return branches, cobra.ShellCompDirectiveNoFileComp
+}
+
 func exitOnError(err error) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

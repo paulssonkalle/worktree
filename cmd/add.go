@@ -32,4 +32,5 @@ with --base).`,
 func init() {
 	rootCmd.AddCommand(addCmd)
 	addCmd.Flags().String("base", "", "base branch to create the new branch from (default: repo's default branch)")
+	addCmd.RegisterFlagCompletionFunc("base", allBranchNames)
 }
