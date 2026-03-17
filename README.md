@@ -26,7 +26,7 @@ simultaneously without stashing, cloning multiple copies, or losing context.
 Requires Go 1.25 or later.
 
 ```bash
-go install github.com/paulssonkalle/worktree-cli@latest
+go install github.com/paulssonkalle/worktree@latest
 ```
 
 The binary is named `worktree`.
@@ -130,11 +130,11 @@ worktree zoxide sync my-app   # a specific repo
 | `status [repo]` | | Show Git status of worktrees |
 | `switch [repo] [worktree]` | | Switch to a worktree (interactive with fzf) |
 | `open <repo> [worktree]` | | Open a worktree in your editor |
-| `fetch [repo]` | | Fetch latest from remotes |
+| `fetch [repo]` | | Fetch latest from remotes (all repos if none specified) |
 | `pin <repo> <worktree>` | | Pin a worktree (excluded from cleanup/prune) |
 | `unpin <repo> <worktree>` | | Unpin a worktree |
 | `cleanup` | | Remove worktrees not modified in N days |
-| `prune [repo]` | | Remove worktrees with merged/deleted branches |
+| `prune [repo]` | | Remove worktrees with merged/deleted branches (skips pinned and default) |
 | `zoxide sync [repo]` | | Add all worktree paths to zoxide |
 | `config init` | | Create the default config file |
 | `config path` | | Print the config file path |
@@ -161,7 +161,7 @@ worktree zoxide sync my-app   # a specific repo
 
 | Flag | Description |
 |---|---|
-| `--force` | Required. Force removal of the repository and all its worktrees |
+| `--force` | Confirm removal of the repository and all its worktrees |
 
 **`add`**
 
@@ -185,6 +185,29 @@ worktree zoxide sync my-app   # a specific repo
 
 Run `worktree <command> --help` for detailed usage and flags.
 
+## Behavior
+
+### Branch name sanitization
+
+Slashes in branch names are replaced with dashes for the worktree directory name.
+For example, `feature/login` becomes `feature-login`.
+
+### Automatic fetching
+
+`add` and `prune` automatically run `git fetch` before performing their
+operations to ensure they work with the latest remote state.
+
+### Upstream tracking
+
+When `add` creates a **new branch** from a remote tracking ref (e.g.
+`origin/main`), Git auto-sets the upstream to that ref. This would cause
+`git push` to fail because the upstream name doesn't match the branch name.
+To avoid this, `worktree` unsets the upstream after creating the branch so you
+can later run `git push -u origin <branch>` to set the correct tracking ref.
+
+When `add` checks out an **existing remote branch**, upstream tracking is
+set automatically to the matching remote branch.
+
 ## Configuration
 
 Config file: `~/.config/worktree/config.toml`
@@ -195,7 +218,8 @@ Config file: `~/.config/worktree/config.toml`
 base_path = "~/worktrees"
 
 # Editor command for 'open' and 'config edit'.
-# Falls back to $EDITOR if not set.
+# 'open' checks this first, then $EDITOR.
+# 'config edit' checks $EDITOR first, then this.
 editor = "code"
 
 # Default number of days for the 'cleanup' command.
