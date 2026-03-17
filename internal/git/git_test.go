@@ -2,10 +2,11 @@ package git
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/paulssonkalle/worktree-cli/internal/testutil"
 )
 
 // initBareRepo creates a temporary normal git repo with one commit on "main",
@@ -21,44 +22,15 @@ func initBareRepo(t *testing.T) string {
 	srcDir := filepath.Join(tmpDir, "src")
 	bareDir := filepath.Join(tmpDir, "bare")
 
-	runGit(t, "", "init", srcDir)
-	runGit(t, srcDir, "checkout", "-b", "main")
-	writeFile(t, filepath.Join(srcDir, "README.md"), "# Test")
-	runGit(t, srcDir, "add", ".")
-	runGit(t, srcDir, "commit", "-m", "initial commit")
+	testutil.RunGit(t, "", "init", srcDir)
+	testutil.RunGit(t, srcDir, "checkout", "-b", "main")
+	testutil.WriteFile(t, filepath.Join(srcDir, "README.md"), "# Test")
+	testutil.RunGit(t, srcDir, "add", ".")
+	testutil.RunGit(t, srcDir, "commit", "-m", "initial commit")
 
-	runGit(t, "", "clone", "--bare", srcDir, bareDir)
+	testutil.RunGit(t, "", "clone", "--bare", srcDir, bareDir)
 
 	return bareDir
-}
-
-func runGit(t *testing.T, dir string, args ...string) string {
-	t.Helper()
-	cmd := exec.Command("git", args...)
-	if dir != "" {
-		cmd.Dir = dir
-	}
-	cmd.Env = append(os.Environ(),
-		"GIT_AUTHOR_NAME=Test",
-		"GIT_AUTHOR_EMAIL=test@test.com",
-		"GIT_COMMITTER_NAME=Test",
-		"GIT_COMMITTER_EMAIL=test@test.com",
-	)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("git %v failed: %s\n%s", args, err, string(out))
-	}
-	return string(out)
-}
-
-func writeFile(t *testing.T, path, content string) {
-	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
 }
 
 // resolvePath resolves symlinks in a path to handle macOS /var -> /private/var.
@@ -77,11 +49,11 @@ func TestCloneBare(t *testing.T) {
 	srcDir := filepath.Join(tmpDir, "src")
 	bareDir := filepath.Join(tmpDir, "clone")
 
-	runGit(t, "", "init", srcDir)
-	runGit(t, srcDir, "checkout", "-b", "main")
-	writeFile(t, filepath.Join(srcDir, "file.txt"), "hello")
-	runGit(t, srcDir, "add", ".")
-	runGit(t, srcDir, "commit", "-m", "first")
+	testutil.RunGit(t, "", "init", srcDir)
+	testutil.RunGit(t, srcDir, "checkout", "-b", "main")
+	testutil.WriteFile(t, filepath.Join(srcDir, "file.txt"), "hello")
+	testutil.RunGit(t, srcDir, "add", ".")
+	testutil.RunGit(t, srcDir, "commit", "-m", "first")
 
 	if err := CloneBare(srcDir, bareDir); err != nil {
 		t.Fatalf("CloneBare() error: %v", err)
@@ -223,8 +195,8 @@ func TestListBranches(t *testing.T) {
 	}
 
 	// Create additional branches
-	runGit(t, bareDir, "branch", "feature-a", "main")
-	runGit(t, bareDir, "branch", "feature-b", "main")
+	testutil.RunGit(t, bareDir, "branch", "feature-a", "main")
+	testutil.RunGit(t, bareDir, "branch", "feature-b", "main")
 
 	branches, err = ListBranches(bareDir)
 	if err != nil {
@@ -246,7 +218,7 @@ func TestListBranchesEmpty(t *testing.T) {
 	// A bare repo with no branches should return nil
 	tmpDir := t.TempDir()
 	bareDir := filepath.Join(tmpDir, "empty-bare")
-	runGit(t, "", "init", "--bare", bareDir)
+	testutil.RunGit(t, "", "init", "--bare", bareDir)
 
 	branches, err := ListBranches(bareDir)
 	if err != nil {
@@ -290,7 +262,7 @@ func TestRemoteBranchExistsWithManualRef(t *testing.T) {
 	bareDir := initBareRepo(t)
 
 	// Get main's commit hash and create a remote tracking ref manually
-	runGit(t, bareDir, "update-ref", "refs/remotes/origin/main", "refs/heads/main")
+	testutil.RunGit(t, bareDir, "update-ref", "refs/remotes/origin/main", "refs/heads/main")
 
 	if !RemoteBranchExists(bareDir, "main") {
 		t.Error("RemoteBranchExists('main') = false after manual ref creation, want true")
@@ -318,8 +290,8 @@ func TestDefaultBranchWithSymbolicRef(t *testing.T) {
 	bareDir := initBareRepo(t)
 
 	// Manually set up origin/HEAD symbolic ref to simulate a proper remote
-	runGit(t, bareDir, "update-ref", "refs/remotes/origin/main", "refs/heads/main")
-	runGit(t, bareDir, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+	testutil.RunGit(t, bareDir, "update-ref", "refs/remotes/origin/main", "refs/heads/main")
+	testutil.RunGit(t, bareDir, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
 
 	branch, err := DefaultBranch(bareDir)
 	if err != nil {
@@ -336,12 +308,12 @@ func TestDefaultBranchUndetectable(t *testing.T) {
 
 	// Create a bare repo with a branch named "develop" (not main/master)
 	srcDir := filepath.Join(tmpDir, "src")
-	runGit(t, "", "init", srcDir)
-	runGit(t, srcDir, "checkout", "-b", "develop")
-	writeFile(t, filepath.Join(srcDir, "file.txt"), "test")
-	runGit(t, srcDir, "add", ".")
-	runGit(t, srcDir, "commit", "-m", "init")
-	runGit(t, "", "clone", "--bare", srcDir, bareDir)
+	testutil.RunGit(t, "", "init", srcDir)
+	testutil.RunGit(t, srcDir, "checkout", "-b", "develop")
+	testutil.WriteFile(t, filepath.Join(srcDir, "file.txt"), "test")
+	testutil.RunGit(t, srcDir, "add", ".")
+	testutil.RunGit(t, srcDir, "commit", "-m", "init")
+	testutil.RunGit(t, "", "clone", "--bare", srcDir, bareDir)
 
 	_, err := DefaultBranch(bareDir)
 	if err == nil {
@@ -358,7 +330,7 @@ func TestIsBranchMerged(t *testing.T) {
 	}
 
 	// Create a feature branch at the same commit as main (trivially merged)
-	runGit(t, wtDir, "branch", "merged-feature")
+	testutil.RunGit(t, wtDir, "branch", "merged-feature")
 
 	merged, err := IsBranchMerged(bareDir, "merged-feature", "main")
 	if err != nil {
@@ -377,9 +349,9 @@ func TestIsBranchNotMerged(t *testing.T) {
 		t.Fatalf("AddWorktree() error: %v", err)
 	}
 
-	writeFile(t, filepath.Join(wtPath, "new-file.txt"), "diverged content")
-	runGit(t, wtPath, "add", ".")
-	runGit(t, wtPath, "commit", "-m", "diverge")
+	testutil.WriteFile(t, filepath.Join(wtPath, "new-file.txt"), "diverged content")
+	testutil.RunGit(t, wtPath, "add", ".")
+	testutil.RunGit(t, wtPath, "commit", "-m", "diverge")
 
 	merged, err := IsBranchMerged(bareDir, "diverged", "main")
 	if err != nil {
@@ -445,7 +417,7 @@ func TestGetStatusDirty(t *testing.T) {
 		t.Fatalf("AddWorktreeExisting() error: %v", err)
 	}
 
-	writeFile(t, filepath.Join(wtPath, "dirty.txt"), "dirty content")
+	testutil.WriteFile(t, filepath.Join(wtPath, "dirty.txt"), "dirty content")
 
 	status, err := GetStatus(wtPath)
 	if err != nil {
@@ -467,9 +439,9 @@ func TestGetStatusMultipleChanges(t *testing.T) {
 		t.Fatalf("AddWorktreeExisting() error: %v", err)
 	}
 
-	writeFile(t, filepath.Join(wtPath, "file1.txt"), "one")
-	writeFile(t, filepath.Join(wtPath, "file2.txt"), "two")
-	writeFile(t, filepath.Join(wtPath, "file3.txt"), "three")
+	testutil.WriteFile(t, filepath.Join(wtPath, "file1.txt"), "one")
+	testutil.WriteFile(t, filepath.Join(wtPath, "file2.txt"), "two")
+	testutil.WriteFile(t, filepath.Join(wtPath, "file3.txt"), "three")
 
 	status, err := GetStatus(wtPath)
 	if err != nil {
@@ -486,9 +458,9 @@ func TestGetStatusMultipleChanges(t *testing.T) {
 func TestGetLastModified(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	writeFile(t, filepath.Join(tmpDir, "old.txt"), "old")
+	testutil.WriteFile(t, filepath.Join(tmpDir, "old.txt"), "old")
 	time.Sleep(50 * time.Millisecond)
-	writeFile(t, filepath.Join(tmpDir, "new.txt"), "new")
+	testutil.WriteFile(t, filepath.Join(tmpDir, "new.txt"), "new")
 
 	lastMod, err := GetLastModified(tmpDir)
 	if err != nil {
@@ -505,11 +477,11 @@ func TestGetLastModified(t *testing.T) {
 func TestGetLastModifiedSkipsGitDir(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	writeFile(t, filepath.Join(tmpDir, ".git", "something"), "git internal")
-	writeFile(t, filepath.Join(tmpDir, ".bare", "something"), "bare internal")
+	testutil.WriteFile(t, filepath.Join(tmpDir, ".git", "something"), "git internal")
+	testutil.WriteFile(t, filepath.Join(tmpDir, ".bare", "something"), "bare internal")
 
 	oldFile := filepath.Join(tmpDir, "content.txt")
-	writeFile(t, oldFile, "content")
+	testutil.WriteFile(t, oldFile, "content")
 
 	lastMod, err := GetLastModified(tmpDir)
 	if err != nil {
@@ -559,8 +531,8 @@ func TestSetUpstreamTracking(t *testing.T) {
 
 	// Configure fetch refspec and fetch to create refs/remotes/origin/* refs,
 	// mirroring what CloneBare does in production.
-	runGit(t, bareDir, "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
-	runGit(t, bareDir, "fetch", "--all")
+	testutil.RunGit(t, bareDir, "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
+	testutil.RunGit(t, bareDir, "fetch", "--all")
 
 	// Create a worktree for main
 	if err := AddWorktreeExisting(bareDir, wtPath, "main"); err != nil {

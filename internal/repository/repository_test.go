@@ -2,11 +2,11 @@ package repository
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
 	"github.com/paulssonkalle/worktree-cli/internal/config"
+	"github.com/paulssonkalle/worktree-cli/internal/testutil"
 )
 
 // setupTestEnv creates a temp directory structure with a config pointing to it,
@@ -33,41 +33,13 @@ func setupTestEnv(t *testing.T) (string, string) {
 
 	// Create a source git repo to clone from
 	srcDir := filepath.Join(tmpDir, "source-repo")
-	runGit(t, "", "init", srcDir)
-	runGit(t, srcDir, "checkout", "-b", "main")
-	writeFile(t, filepath.Join(srcDir, "README.md"), "# Test repo")
-	runGit(t, srcDir, "add", ".")
-	runGit(t, srcDir, "commit", "-m", "initial commit")
+	testutil.RunGit(t, "", "init", srcDir)
+	testutil.RunGit(t, srcDir, "checkout", "-b", "main")
+	testutil.WriteFile(t, filepath.Join(srcDir, "README.md"), "# Test repo")
+	testutil.RunGit(t, srcDir, "add", ".")
+	testutil.RunGit(t, srcDir, "commit", "-m", "initial commit")
 
 	return basePath, srcDir
-}
-
-func runGit(t *testing.T, dir string, args ...string) {
-	t.Helper()
-	cmd := exec.Command("git", args...)
-	if dir != "" {
-		cmd.Dir = dir
-	}
-	cmd.Env = append(os.Environ(),
-		"GIT_AUTHOR_NAME=Test",
-		"GIT_AUTHOR_EMAIL=test@test.com",
-		"GIT_COMMITTER_NAME=Test",
-		"GIT_COMMITTER_EMAIL=test@test.com",
-	)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("git %v failed: %s\n%s", args, err, string(out))
-	}
-}
-
-func writeFile(t *testing.T, path, content string) {
-	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
 }
 
 func TestAdd(t *testing.T) {

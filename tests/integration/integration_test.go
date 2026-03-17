@@ -2,13 +2,13 @@ package integration_test
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
 	"github.com/paulssonkalle/worktree-cli/internal/config"
 	"github.com/paulssonkalle/worktree-cli/internal/git"
 	"github.com/paulssonkalle/worktree-cli/internal/repository"
+	"github.com/paulssonkalle/worktree-cli/internal/testutil"
 	"github.com/paulssonkalle/worktree-cli/internal/worktree"
 )
 
@@ -35,45 +35,17 @@ func setupIntegrationEnv(t *testing.T) (string, string) {
 
 	// Create a source git repo with multiple commits
 	srcDir := filepath.Join(tmpDir, "source-repo")
-	runGit(t, "", "init", srcDir)
-	runGit(t, srcDir, "checkout", "-b", "main")
-	writeFile(t, filepath.Join(srcDir, "README.md"), "# Integration Test Project")
-	runGit(t, srcDir, "add", ".")
-	runGit(t, srcDir, "commit", "-m", "initial commit")
+	testutil.RunGit(t, "", "init", srcDir)
+	testutil.RunGit(t, srcDir, "checkout", "-b", "main")
+	testutil.WriteFile(t, filepath.Join(srcDir, "README.md"), "# Integration Test Project")
+	testutil.RunGit(t, srcDir, "add", ".")
+	testutil.RunGit(t, srcDir, "commit", "-m", "initial commit")
 
-	writeFile(t, filepath.Join(srcDir, "src", "main.go"), "package main\n\nfunc main() {}\n")
-	runGit(t, srcDir, "add", ".")
-	runGit(t, srcDir, "commit", "-m", "add main.go")
+	testutil.WriteFile(t, filepath.Join(srcDir, "src", "main.go"), "package main\n\nfunc main() {}\n")
+	testutil.RunGit(t, srcDir, "add", ".")
+	testutil.RunGit(t, srcDir, "commit", "-m", "add main.go")
 
 	return basePath, srcDir
-}
-
-func runGit(t *testing.T, dir string, args ...string) {
-	t.Helper()
-	cmd := exec.Command("git", args...)
-	if dir != "" {
-		cmd.Dir = dir
-	}
-	cmd.Env = append(os.Environ(),
-		"GIT_AUTHOR_NAME=Test",
-		"GIT_AUTHOR_EMAIL=test@test.com",
-		"GIT_COMMITTER_NAME=Test",
-		"GIT_COMMITTER_EMAIL=test@test.com",
-	)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("git %v failed: %s\n%s", args, err, string(out))
-	}
-}
-
-func writeFile(t *testing.T, path, content string) {
-	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
 }
 
 // TestFullWorkflow exercises the complete lifecycle:
@@ -171,7 +143,7 @@ func TestFullWorkflow(t *testing.T) {
 	}
 
 	// === 4b. Status (dirty) ===
-	writeFile(t, filepath.Join(featureDir, "auth.go"), "package auth\n")
+	testutil.WriteFile(t, filepath.Join(featureDir, "auth.go"), "package auth\n")
 	status, err = worktree.Status("webapp", "feature-auth")
 	if err != nil {
 		t.Fatalf("Status() after dirtying error: %v", err)
@@ -389,11 +361,11 @@ func TestFetchIntegration(t *testing.T) {
 	}
 
 	// Create a new branch in the source repo
-	runGit(t, srcDir, "checkout", "-b", "feature-remote")
-	writeFile(t, filepath.Join(srcDir, "new-file.txt"), "new content")
-	runGit(t, srcDir, "add", ".")
-	runGit(t, srcDir, "commit", "-m", "add feature")
-	runGit(t, srcDir, "checkout", "main")
+	testutil.RunGit(t, srcDir, "checkout", "-b", "feature-remote")
+	testutil.WriteFile(t, filepath.Join(srcDir, "new-file.txt"), "new content")
+	testutil.RunGit(t, srcDir, "add", ".")
+	testutil.RunGit(t, srcDir, "commit", "-m", "add feature")
+	testutil.RunGit(t, srcDir, "checkout", "main")
 
 	// Before fetch, new branch should not be visible
 	branches, err = git.ListBranches(bareDir)

@@ -2,13 +2,13 @@ package worktree
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/paulssonkalle/worktree-cli/internal/config"
 	"github.com/paulssonkalle/worktree-cli/internal/repository"
+	"github.com/paulssonkalle/worktree-cli/internal/testutil"
 )
 
 // setupTestEnv creates a temp directory with a config, a source repo, and adds
@@ -35,11 +35,11 @@ func setupTestEnv(t *testing.T) (string, string) {
 
 	// Create a source git repo
 	srcDir := filepath.Join(tmpDir, "source-repo")
-	runGit(t, "", "init", srcDir)
-	runGit(t, srcDir, "checkout", "-b", "main")
-	writeFile(t, filepath.Join(srcDir, "README.md"), "# Test project")
-	runGit(t, srcDir, "add", ".")
-	runGit(t, srcDir, "commit", "-m", "initial commit")
+	testutil.RunGit(t, "", "init", srcDir)
+	testutil.RunGit(t, srcDir, "checkout", "-b", "main")
+	testutil.WriteFile(t, filepath.Join(srcDir, "README.md"), "# Test project")
+	testutil.RunGit(t, srcDir, "add", ".")
+	testutil.RunGit(t, srcDir, "commit", "-m", "initial commit")
 
 	// Add the repository (this clones bare + creates "main" worktree pinned)
 	if err := repository.Add("testproj", srcDir, "", ""); err != nil {
@@ -48,34 +48,6 @@ func setupTestEnv(t *testing.T) (string, string) {
 	config.Reload()
 
 	return basePath, "testproj"
-}
-
-func runGit(t *testing.T, dir string, args ...string) {
-	t.Helper()
-	cmd := exec.Command("git", args...)
-	if dir != "" {
-		cmd.Dir = dir
-	}
-	cmd.Env = append(os.Environ(),
-		"GIT_AUTHOR_NAME=Test",
-		"GIT_AUTHOR_EMAIL=test@test.com",
-		"GIT_COMMITTER_NAME=Test",
-		"GIT_COMMITTER_EMAIL=test@test.com",
-	)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("git %v failed: %s\n%s", args, err, string(out))
-	}
-}
-
-func writeFile(t *testing.T, path, content string) {
-	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
 }
 
 func TestAdd(t *testing.T) {
@@ -163,11 +135,11 @@ func TestAddRemoteOnlyBranch(t *testing.T) {
 	config.Reload()
 
 	srcDir := filepath.Join(tmpDir, "source-repo")
-	runGit(t, "", "init", srcDir)
-	runGit(t, srcDir, "checkout", "-b", "main")
-	writeFile(t, filepath.Join(srcDir, "README.md"), "# Test project")
-	runGit(t, srcDir, "add", ".")
-	runGit(t, srcDir, "commit", "-m", "initial commit")
+	testutil.RunGit(t, "", "init", srcDir)
+	testutil.RunGit(t, srcDir, "checkout", "-b", "main")
+	testutil.WriteFile(t, filepath.Join(srcDir, "README.md"), "# Test project")
+	testutil.RunGit(t, srcDir, "add", ".")
+	testutil.RunGit(t, srcDir, "commit", "-m", "initial commit")
 
 	repoName := "testproj"
 	if err := repository.Add(repoName, srcDir, "", ""); err != nil {
@@ -177,11 +149,11 @@ func TestAddRemoteOnlyBranch(t *testing.T) {
 
 	// Create a branch in the source repo (acts as remote) that does not
 	// exist locally in the bare clone.
-	runGit(t, srcDir, "checkout", "-b", "feature/remote-only")
-	writeFile(t, filepath.Join(srcDir, "remote-file.txt"), "remote content")
-	runGit(t, srcDir, "add", ".")
-	runGit(t, srcDir, "commit", "-m", "remote only commit")
-	runGit(t, srcDir, "checkout", "main")
+	testutil.RunGit(t, srcDir, "checkout", "-b", "feature/remote-only")
+	testutil.WriteFile(t, filepath.Join(srcDir, "remote-file.txt"), "remote content")
+	testutil.RunGit(t, srcDir, "add", ".")
+	testutil.RunGit(t, srcDir, "commit", "-m", "remote only commit")
+	testutil.RunGit(t, srcDir, "checkout", "main")
 
 	// Add the worktree - this should fetch and check out the remote branch
 	if err := Add(repoName, "feature/remote-only", ""); err != nil {
@@ -314,11 +286,11 @@ func TestListAll(t *testing.T) {
 
 	// Create source repo
 	srcDir := filepath.Join(tmpDir, "source-repo")
-	runGit(t, "", "init", srcDir)
-	runGit(t, srcDir, "checkout", "-b", "main")
-	writeFile(t, filepath.Join(srcDir, "README.md"), "test")
-	runGit(t, srcDir, "add", ".")
-	runGit(t, srcDir, "commit", "-m", "init")
+	testutil.RunGit(t, "", "init", srcDir)
+	testutil.RunGit(t, srcDir, "checkout", "-b", "main")
+	testutil.WriteFile(t, filepath.Join(srcDir, "README.md"), "test")
+	testutil.RunGit(t, srcDir, "add", ".")
+	testutil.RunGit(t, srcDir, "commit", "-m", "init")
 
 	// Add two repositories
 	if err := repository.Add("repo-a", srcDir, "", ""); err != nil {
@@ -430,7 +402,7 @@ func TestStatus(t *testing.T) {
 	}
 
 	// Make it dirty
-	writeFile(t, filepath.Join(basePath, repoName, "main", "dirty.txt"), "dirty")
+	testutil.WriteFile(t, filepath.Join(basePath, repoName, "main", "dirty.txt"), "dirty")
 
 	info, err = Status(repoName, "main")
 	if err != nil {
