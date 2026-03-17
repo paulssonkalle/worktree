@@ -81,4 +81,5 @@ func init() {
 	cleanupCmd.Flags().Int("days", 0, "number of days since last modification (default: from config)")
 	cleanupCmd.Flags().Bool("dry-run", false, "preview what would be removed without actually removing")
 	cleanupCmd.Flags().String("repo", "", "limit cleanup to a specific repository")
+	cleanupCmd.RegisterFlagCompletionFunc("repo", repoNames)
 }
