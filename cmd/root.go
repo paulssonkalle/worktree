@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/paulssonkalle/worktree-cli/internal/config"
@@ -134,13 +133,6 @@ func allBranchNames(cmd *cobra.Command, args []string, toComplete string) ([]str
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 	return branches, cobra.ShellCompDirectiveNoFileComp
-}
-
-func exitOnError(err error) {
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
 }
 
 // exactArgs returns a cobra argument validator that requires exactly n args
