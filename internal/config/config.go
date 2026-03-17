@@ -34,6 +34,7 @@ type Config struct {
 
 var (
 	cfg      *Config
+	cfgErr   error
 	cfgOnce  sync.Once
 	cfgPath  string
 	firstRun bool
@@ -55,6 +56,7 @@ func DefaultConfigPath() string {
 func SetConfigPath(path string) {
 	cfgPath = path
 	cfg = nil
+	cfgErr = nil
 	cfgOnce = sync.Once{}
 	firstRun = false
 }
@@ -66,23 +68,22 @@ func IsFirstRun() bool {
 
 // Load reads the config from disk, creating defaults if it doesn't exist.
 func Load() (*Config, error) {
-	var loadErr error
 	cfgOnce.Do(func() {
 		path := DefaultConfigPath()
 		data, err := os.ReadFile(path)
 		if err != nil {
 			if os.IsNotExist(err) {
 				cfg = defaultConfig()
-				loadErr = Save(cfg)
+				cfgErr = Save(cfg)
 				firstRun = true
 				return
 			}
-			loadErr = fmt.Errorf("reading config: %w", err)
+			cfgErr = fmt.Errorf("reading config: %w", err)
 			return
 		}
 		var c Config
 		if err := toml.Unmarshal(data, &c); err != nil {
-			loadErr = fmt.Errorf("parsing config: %w", err)
+			cfgErr = fmt.Errorf("parsing config: %w", err)
 			return
 		}
 		if c.Repositories == nil {
@@ -96,12 +97,13 @@ func Load() (*Config, error) {
 		}
 		cfg = &c
 	})
-	return cfg, loadErr
+	return cfg, cfgErr
 }
 
 // Reload forces a fresh load of the config on next Load() call.
 func Reload() {
 	cfg = nil
+	cfgErr = nil
 	cfgOnce = sync.Once{}
 	firstRun = false
 }
