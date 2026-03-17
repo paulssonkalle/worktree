@@ -130,7 +130,9 @@ func Remove(repoName, worktreeName string) error {
 	}
 
 	// Clean up directory if it still exists
-	os.RemoveAll(wtPath)
+	if err := os.RemoveAll(wtPath); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not remove directory %s: %v\n", wtPath, err)
+	}
 
 	delete(repo.Worktrees, config.SanitizeBranchName(worktreeName))
 	cfg.Repositories[repoName] = repo
