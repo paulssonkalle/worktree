@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/paulssonkalle/worktree-cli/internal/worktree"
-	"github.com/paulssonkalle/worktree-cli/internal/zoxide"
+	"github.com/paulssonkalle/worktree/internal/worktree"
+	"github.com/paulssonkalle/worktree/internal/zoxide"
 	"github.com/spf13/cobra"
 )
 

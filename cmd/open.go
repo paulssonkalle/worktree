@@ -5,9 +5,9 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/paulssonkalle/worktree-cli/internal/config"
-	"github.com/paulssonkalle/worktree-cli/internal/repository"
-	"github.com/paulssonkalle/worktree-cli/internal/worktree"
+	"github.com/paulssonkalle/worktree/internal/config"
+	"github.com/paulssonkalle/worktree/internal/repository"
+	"github.com/paulssonkalle/worktree/internal/worktree"
 	"github.com/spf13/cobra"
 )
 

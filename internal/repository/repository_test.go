@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/paulssonkalle/worktree-cli/internal/config"
-	"github.com/paulssonkalle/worktree-cli/internal/testutil"
+	"github.com/paulssonkalle/worktree/internal/config"
+	"github.com/paulssonkalle/worktree/internal/testutil"
 )
 
 // setupTestEnv creates a temp directory structure with a config pointing to it,

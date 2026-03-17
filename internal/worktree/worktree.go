@@ -7,10 +7,10 @@ import (
 	"sort"
 	"time"
 
-	"github.com/paulssonkalle/worktree-cli/internal/config"
-	"github.com/paulssonkalle/worktree-cli/internal/git"
-	"github.com/paulssonkalle/worktree-cli/internal/repository"
-	"github.com/paulssonkalle/worktree-cli/internal/zoxide"
+	"github.com/paulssonkalle/worktree/internal/config"
+	"github.com/paulssonkalle/worktree/internal/git"
+	"github.com/paulssonkalle/worktree/internal/repository"
+	"github.com/paulssonkalle/worktree/internal/zoxide"
 )
 
 // Info holds display information about a worktree.

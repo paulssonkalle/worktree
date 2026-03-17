@@ -1,4 +1,4 @@
-module github.com/paulssonkalle/worktree-cli
+module github.com/paulssonkalle/worktree
 
 go 1.25.0
 

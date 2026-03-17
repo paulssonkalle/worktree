@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/paulssonkalle/worktree-cli/internal/config"
-	"github.com/paulssonkalle/worktree-cli/internal/git"
-	"github.com/paulssonkalle/worktree-cli/internal/zoxide"
+	"github.com/paulssonkalle/worktree/internal/config"
+	"github.com/paulssonkalle/worktree/internal/git"
+	"github.com/paulssonkalle/worktree/internal/zoxide"
 )
 
 // Add creates a new repository by cloning a bare repo.

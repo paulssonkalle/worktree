@@ -5,8 +5,8 @@ import (
 	"os"
 	"text/tabwriter"
 
-	"github.com/paulssonkalle/worktree-cli/internal/repository"
-	"github.com/paulssonkalle/worktree-cli/internal/worktree"
+	"github.com/paulssonkalle/worktree/internal/repository"
+	"github.com/paulssonkalle/worktree/internal/worktree"
 	"github.com/spf13/cobra"
 )
 

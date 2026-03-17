@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/paulssonkalle/worktree-cli/internal/worktree"
+	"github.com/paulssonkalle/worktree/internal/worktree"
 	"github.com/spf13/cobra"
 )
 

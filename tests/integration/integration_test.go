@@ -5,11 +5,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/paulssonkalle/worktree-cli/internal/config"
-	"github.com/paulssonkalle/worktree-cli/internal/git"
-	"github.com/paulssonkalle/worktree-cli/internal/repository"
-	"github.com/paulssonkalle/worktree-cli/internal/testutil"
-	"github.com/paulssonkalle/worktree-cli/internal/worktree"
+	"github.com/paulssonkalle/worktree/internal/config"
+	"github.com/paulssonkalle/worktree/internal/git"
+	"github.com/paulssonkalle/worktree/internal/repository"
+	"github.com/paulssonkalle/worktree/internal/testutil"
+	"github.com/paulssonkalle/worktree/internal/worktree"
 )
 
 // setupIntegrationEnv creates a complete test environment: temp dirs for config

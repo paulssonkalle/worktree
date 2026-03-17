@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/paulssonkalle/worktree-cli/internal/config"
-	"github.com/paulssonkalle/worktree-cli/internal/repository"
-	"github.com/paulssonkalle/worktree-cli/internal/testutil"
+	"github.com/paulssonkalle/worktree/internal/config"
+	"github.com/paulssonkalle/worktree/internal/repository"
+	"github.com/paulssonkalle/worktree/internal/testutil"
 )
 
 // setupTestEnv creates a temp directory with a config, a source repo, and adds

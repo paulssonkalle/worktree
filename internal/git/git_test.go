@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/paulssonkalle/worktree-cli/internal/testutil"
+	"github.com/paulssonkalle/worktree/internal/testutil"
 )
 
 // initBareRepo creates a temporary normal git repo with one commit on "main",

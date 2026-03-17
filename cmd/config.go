@@ -5,7 +5,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/paulssonkalle/worktree-cli/internal/config"
+	"github.com/paulssonkalle/worktree/internal/config"
 	"github.com/spf13/cobra"
 )
 

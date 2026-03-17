@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/paulssonkalle/worktree-cli/internal/config"
-	"github.com/paulssonkalle/worktree-cli/internal/git"
-	"github.com/paulssonkalle/worktree-cli/internal/repository"
+	"github.com/paulssonkalle/worktree/internal/config"
+	"github.com/paulssonkalle/worktree/internal/git"
+	"github.com/paulssonkalle/worktree/internal/repository"
 	"github.com/spf13/cobra"
 )
 
