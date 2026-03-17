@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/paulssonkalle/worktree-cli/internal/worktree"
 	"github.com/paulssonkalle/worktree-cli/internal/zoxide"
@@ -45,7 +46,7 @@ Otherwise all worktrees across every repository are added.`,
 		added := 0
 		for _, info := range infos {
 			if err := zoxide.Add(info.Path); err != nil {
-				fmt.Printf("  warning: failed to add %s: %v\n", info.Path, err)
+				fmt.Fprintf(os.Stderr, "Warning: failed to add %s: %v\n", info.Path, err)
 				continue
 			}
 			fmt.Println(info.Path)

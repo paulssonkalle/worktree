@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/paulssonkalle/worktree-cli/internal/git"
 	"github.com/paulssonkalle/worktree-cli/internal/repository"
@@ -55,7 +56,7 @@ func fetchAll() error {
 		bareDir := repository.BareDir(name)
 		fmt.Printf("Fetching %s...\n", name)
 		if err := git.Fetch(bareDir); err != nil {
-			fmt.Printf("  error: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Warning: fetch failed for %s: %v\n", name, err)
 			failed = append(failed, name)
 			continue
 		}
