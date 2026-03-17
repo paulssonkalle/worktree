@@ -552,3 +552,47 @@ func TestListWorktreesBareOnly(t *testing.T) {
 		t.Errorf("expected 1 bare entry, got %d (total entries: %d)", bareCount, len(worktrees))
 	}
 }
+
+func TestSetUpstreamTracking(t *testing.T) {
+	bareDir := initBareRepo(t)
+	wtPath := filepath.Join(t.TempDir(), "tracking-wt")
+
+	// Configure fetch refspec and fetch to create refs/remotes/origin/* refs,
+	// mirroring what CloneBare does in production.
+	runGit(t, bareDir, "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
+	runGit(t, bareDir, "fetch", "--all")
+
+	// Create a worktree for main
+	if err := AddWorktreeExisting(bareDir, wtPath, "main"); err != nil {
+		t.Fatalf("AddWorktreeExisting() error: %v", err)
+	}
+
+	// Set upstream tracking
+	if err := SetUpstreamTracking(wtPath, "main"); err != nil {
+		t.Fatalf("SetUpstreamTracking() error: %v", err)
+	}
+
+	// Verify upstream is set by checking git status output
+	status, err := GetStatus(wtPath)
+	if err != nil {
+		t.Fatalf("GetStatus() error: %v", err)
+	}
+	if status.UpstreamGone {
+		t.Error("UpstreamGone = true after setting upstream, want false")
+	}
+}
+
+func TestSetUpstreamTrackingNoRemote(t *testing.T) {
+	bareDir := initBareRepo(t)
+	wtPath := filepath.Join(t.TempDir(), "no-remote-wt")
+
+	if err := AddWorktree(bareDir, wtPath, "orphan-branch", "main"); err != nil {
+		t.Fatalf("AddWorktree() error: %v", err)
+	}
+
+	// No refs/remotes/origin/orphan-branch exists, so this should fail
+	err := SetUpstreamTracking(wtPath, "orphan-branch")
+	if err == nil {
+		t.Error("SetUpstreamTracking() returned nil error for nonexistent remote branch, want error")
+	}
+}
