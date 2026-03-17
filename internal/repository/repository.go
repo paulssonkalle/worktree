@@ -157,6 +157,9 @@ func Get(name string) (*config.RepositoryConfig, error) {
 // over the global BasePath.
 func RepositoryDir(name string) string {
 	cfg, _ := config.Load()
+	if cfg == nil {
+		return filepath.Join("worktrees", name)
+	}
 	if repo, exists := cfg.Repositories[name]; exists && repo.BasePath != "" {
 		return filepath.Join(config.ExpandPath(repo.BasePath), name)
 	}
