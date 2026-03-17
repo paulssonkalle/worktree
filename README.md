@@ -90,6 +90,9 @@ worktree completion zsh > "${fpath[1]}/_worktree"
 
 # fish
 worktree completion fish | source
+
+# powershell
+worktree completion powershell | Out-String | Invoke-Expression
 ```
 
 Run `worktree completion --help` for persistent installation instructions.
@@ -143,6 +146,7 @@ worktree zoxide sync my-app   # a specific repo
 | Flag | Description |
 |---|---|
 | `--config <path>` | Override the config file path (default: `~/.config/worktree/config.toml`) |
+| `--version` | Print the version number and exit |
 
 ### Command flags
 
