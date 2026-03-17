@@ -3,6 +3,7 @@ package git
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -566,5 +567,39 @@ func TestSetUpstreamTrackingNoRemote(t *testing.T) {
 	err := SetUpstreamTracking(wtPath, "orphan-branch")
 	if err == nil {
 		t.Error("SetUpstreamTracking() returned nil error for nonexistent remote branch, want error")
+	}
+}
+
+func TestUnsetUpstreamTracking(t *testing.T) {
+	bareDir := initBareRepo(t)
+	wtPath := filepath.Join(t.TempDir(), "unset-wt")
+
+	// Configure fetch refspec and fetch to create refs/remotes/origin/* refs.
+	testutil.RunGit(t, bareDir, "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
+	testutil.RunGit(t, bareDir, "fetch", "--all")
+
+	// Create a new branch from origin/main — git auto-sets upstream to origin/main
+	if err := AddWorktree(bareDir, wtPath, "new-feature", "origin/main"); err != nil {
+		t.Fatalf("AddWorktree() error: %v", err)
+	}
+
+	// Verify upstream was auto-set by git
+	status, err := GetStatus(wtPath)
+	if err != nil {
+		t.Fatalf("GetStatus() error: %v", err)
+	}
+	if status.UpstreamGone {
+		t.Error("expected upstream to be set after creating from remote ref")
+	}
+
+	// Unset the upstream
+	if err := UnsetUpstreamTracking(wtPath, "new-feature"); err != nil {
+		t.Fatalf("UnsetUpstreamTracking() error: %v", err)
+	}
+
+	// Verify upstream is gone — git branch -vv should not show [...] tracking info
+	branchOut := testutil.RunGit(t, wtPath, "branch", "-vv")
+	if strings.Contains(branchOut, "[origin/") {
+		t.Errorf("upstream still set after UnsetUpstreamTracking(), branch -vv: %s", branchOut)
 	}
 }

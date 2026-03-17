@@ -186,6 +186,12 @@ func SetUpstreamTracking(dir, branch string) error {
 	return err
 }
 
+// UnsetUpstreamTracking removes the upstream tracking configuration for a branch.
+func UnsetUpstreamTracking(dir, branch string) error {
+	_, err := run(dir, "branch", "--unset-upstream", branch)
+	return err
+}
+
 // DefaultBranch detects the default branch of the remote.
 func DefaultBranch(bareDir string) (string, error) {
 	out, err := run(bareDir, "symbolic-ref", "refs/remotes/origin/HEAD")

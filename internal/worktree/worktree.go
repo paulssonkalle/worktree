@@ -80,6 +80,12 @@ func Add(repoName, branchName, baseBranch string) error {
 		if err := git.AddWorktree(bareDir, wtPath, branchName, baseRef); err != nil {
 			return fmt.Errorf("creating worktree: %w", err)
 		}
+		// git auto-sets upstream to the base tracking branch (e.g. origin/main)
+		// when creating from a remote ref. Unset it so the user can push with
+		// `git push -u origin <branch>` to create the correct remote tracking branch.
+		if err := git.UnsetUpstreamTracking(wtPath, branchName); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not unset upstream tracking: %v\n", err)
+		}
 	}
 
 	// Set up upstream tracking if a matching remote branch exists
