@@ -85,7 +85,7 @@ func Add(name, repoURL, defaultBranch, basePath string) error {
 
 	if cfg.Zoxide && zoxide.IsAvailable() {
 		if err := zoxide.Add(wtPath); err != nil {
-			fmt.Printf("Warning: could not add to zoxide: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Warning: could not add to zoxide: %v\n", err)
 		}
 	}
 
