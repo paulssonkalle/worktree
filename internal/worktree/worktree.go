@@ -82,6 +82,13 @@ func Add(repoName, branchName, baseBranch string) error {
 		}
 	}
 
+	// Set up upstream tracking if a matching remote branch exists
+	if git.RemoteBranchExists(bareDir, branchName) {
+		if err := git.SetUpstreamTracking(wtPath, branchName); err != nil {
+			fmt.Printf("Warning: could not set upstream tracking: %v\n", err)
+		}
+	}
+
 	// Update config
 	if repo.Worktrees == nil {
 		repo.Worktrees = make(map[string]config.WorktreeConfig)

@@ -180,6 +180,12 @@ func DeleteBranch(bareDir, branch string) error {
 	return err
 }
 
+// SetUpstreamTracking sets the upstream tracking branch to origin/<branch>.
+func SetUpstreamTracking(dir, branch string) error {
+	_, err := run(dir, "branch", "--set-upstream-to=origin/"+branch, branch)
+	return err
+}
+
 // DefaultBranch detects the default branch of the remote.
 func DefaultBranch(bareDir string) (string, error) {
 	out, err := run(bareDir, "symbolic-ref", "refs/remotes/origin/HEAD")
