@@ -128,7 +128,7 @@ worktree zoxide sync my-app   # a specific repo
 | `repo remove <name>` | `repo rm` | Remove a repository and all its worktrees |
 | `repo list` | `repo ls` | List configured repositories |
 | `add <repo> <branch>` | | Create a worktree for a branch |
-| `remove <repo> <worktree>` | `rm` | Remove a worktree |
+| `remove <repo> <worktree>` | `rm` | Remove a worktree (deletes local branch if clean) |
 | `rename <repo> <old> <new>` | | Rename a worktree's branch and directory |
 | `list [repo]` | `ls` | List worktrees |
 | `status [repo]` | | Show Git status of worktrees |
@@ -137,8 +137,8 @@ worktree zoxide sync my-app   # a specific repo
 | `fetch [repo]` | | Fetch latest from remotes (all repos if none specified) |
 | `pin <repo> <worktree>` | | Pin a worktree (excluded from cleanup/prune) |
 | `unpin <repo> <worktree>` | | Unpin a worktree |
-| `cleanup` | | Remove worktrees not modified in N days |
-| `prune [repo]` | | Remove worktrees with merged/deleted branches (skips pinned and default) |
+| `cleanup` | | Remove worktrees not modified in N days (deletes clean branches) |
+| `prune [repo]` | | Remove worktrees with merged/deleted branches and their local branches |
 | `zoxide sync [repo]` | | Add all worktree paths to zoxide |
 | `config init` | | Create the default config file |
 | `config path` | | Print the config file path |
@@ -173,6 +173,13 @@ worktree zoxide sync my-app   # a specific repo
 |---|---|
 | `--base <branch>` | Base branch to create the new branch from (default: repo's default branch) |
 
+**`remove`**
+
+| Flag | Description |
+|---|---|
+| `--keep-branch` | Keep the local Git branch after removing the worktree |
+| `--force-branch` | Delete the local Git branch even if it has unpushed changes |
+
 **`cleanup`**
 
 | Flag | Description |
@@ -200,6 +207,18 @@ For example, `feature/login` becomes `feature-login`.
 
 `add` and `prune` automatically run `git fetch` before performing their
 operations to ensure they work with the latest remote state.
+
+### Branch cleanup
+
+When a worktree is removed (via `remove`, `cleanup`, or `prune`), the local Git
+branch is also deleted if it has no unpushed commits or uncommitted changes. The
+default branch is never deleted.
+
+- **`remove`**: deletes the branch if clean; use `--keep-branch` to skip or
+  `--force-branch` to delete even with unpushed changes.
+- **`prune`**: always deletes the branch (the branch is already merged or its
+  remote was deleted).
+- **`cleanup`**: deletes the branch if clean, otherwise keeps it with a warning.
 
 ### Upstream tracking
 

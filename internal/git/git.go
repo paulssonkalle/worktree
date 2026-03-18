@@ -165,8 +165,9 @@ func IsBranchMerged(bareDir, branch, target string) (bool, error) {
 		return false, err
 	}
 	for _, line := range strings.Split(out, "\n") {
-		name := strings.TrimSpace(strings.TrimPrefix(line, "*"))
-		name = strings.TrimSpace(name)
+		// git prefixes the current branch with "* " and branches checked
+		// out in other worktrees with "+ ". Strip both prefixes.
+		name := strings.TrimLeft(line, " *+")
 		if name == branch {
 			return true, nil
 		}

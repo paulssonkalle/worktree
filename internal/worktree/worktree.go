@@ -33,6 +33,12 @@ type AddOptions struct {
 	NoSymlinks bool
 }
 
+// RemoveOptions configures worktree removal.
+type RemoveOptions struct {
+	KeepBranch  bool // never delete the local branch
+	ForceBranch bool // delete the local branch even if it has unpushed changes
+}
+
 // Add creates a new worktree in a repository.
 func Add(repoName, branchName string, opts AddOptions) error {
 	cfg, err := config.Load()
@@ -137,8 +143,17 @@ func Add(repoName, branchName string, opts AddOptions) error {
 	return nil
 }
 
-// Remove removes a worktree from a repository.
+// Remove removes a worktree from a repository with default options.
+// By default, the local branch is deleted if it has no unpushed changes.
 func Remove(repoName, worktreeName string) error {
+	return RemoveWithOptions(repoName, worktreeName, RemoveOptions{})
+}
+
+// RemoveWithOptions removes a worktree from a repository with the given options.
+// Unless KeepBranch is set, the local branch is also deleted. If the branch has
+// unpushed commits or uncommitted changes, deletion is skipped unless ForceBranch
+// is set. The default branch is never deleted.
+func RemoveWithOptions(repoName, worktreeName string, opts RemoveOptions) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
@@ -151,6 +166,55 @@ func Remove(repoName, worktreeName string) error {
 
 	bareDir := repository.BareDir(repoName)
 	wtPath := WorktreeDir(repoName, worktreeName)
+
+	// Resolve the actual git branch name from the worktree before removing it.
+	var branchName string
+	var deleteBranch bool
+
+	if !opts.KeepBranch {
+		gitWorktrees, err := git.ListWorktrees(bareDir)
+		if err == nil {
+			// Resolve symlinks so paths from git and from config match
+			// (e.g. on macOS /var -> /private/var).
+			resolvedWtPath, _ := filepath.EvalSymlinks(wtPath)
+			for _, gwt := range gitWorktrees {
+				resolvedGwt, _ := filepath.EvalSymlinks(gwt.Path)
+				if resolvedGwt == resolvedWtPath {
+					branchName = gwt.Branch
+					break
+				}
+			}
+		}
+
+		if branchName != "" && branchName != repo.DefaultBranch {
+			if opts.ForceBranch {
+				deleteBranch = true
+			} else {
+				// Check for unpushed commits or uncommitted changes.
+				// A branch is considered to have unpushed changes if:
+				// - it has uncommitted changes (dirty), or
+				// - it has commits ahead of the upstream, or
+				// - it has no remote counterpart at all (local-only branch with commits)
+				status, err := git.GetStatus(wtPath)
+				if err == nil {
+					hasUnpushed := status.Dirty || status.Ahead > 0
+					if !hasUnpushed && !git.RemoteBranchExists(bareDir, branchName) {
+						// Local-only branch: check if it has commits beyond the default branch
+						merged, mergeErr := git.IsBranchMerged(bareDir, branchName, repo.DefaultBranch)
+						if mergeErr != nil || !merged {
+							hasUnpushed = true
+						}
+					}
+
+					if hasUnpushed {
+						fmt.Fprintf(os.Stderr, "Warning: branch %q has unpushed changes, keeping local branch\n", branchName)
+					} else {
+						deleteBranch = true
+					}
+				}
+			}
+		}
+	}
 
 	if err := git.RemoveWorktree(bareDir, wtPath); err != nil {
 		return fmt.Errorf("removing worktree: %w", err)
@@ -165,6 +229,15 @@ func Remove(repoName, worktreeName string) error {
 	cfg.Repositories[repoName] = repo
 	if err := config.Save(cfg); err != nil {
 		return fmt.Errorf("saving config: %w", err)
+	}
+
+	if deleteBranch {
+		if err := git.DeleteBranch(bareDir, branchName); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not delete branch %q: %v\n", branchName, err)
+		} else {
+			fmt.Printf("Worktree %q removed from repo %q (branch %q deleted)\n", worktreeName, repoName, branchName)
+			return nil
+		}
 	}
 
 	fmt.Printf("Worktree %q removed from repo %q\n", worktreeName, repoName)
@@ -473,7 +546,7 @@ func Cleanup(days int, dryRun bool, repoFilter string) ([]CleanupResult, error) 
 				}
 
 				if !dryRun {
-					if err := Remove(repoName, name); err != nil {
+					if err := RemoveWithOptions(repoName, name, RemoveOptions{}); err != nil {
 						fmt.Fprintf(os.Stderr, "Warning: could not remove %s/%s: %v\n", repoName, name, err)
 						continue
 					}
@@ -577,7 +650,7 @@ func Prune(repoFilter string, dryRun bool) ([]PruneResult, error) {
 			}
 
 			if !dryRun {
-				if err := Remove(repoName, name); err != nil {
+				if err := RemoveWithOptions(repoName, name, RemoveOptions{ForceBranch: true}); err != nil {
 					fmt.Fprintf(os.Stderr, "Warning: could not remove %s/%s: %v\n", repoName, name, err)
 					continue
 				}

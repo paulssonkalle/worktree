@@ -78,13 +78,13 @@ func TestAddExistingBranch(t *testing.T) {
 	_, repoName := setupTestEnv(t)
 
 	// "main" branch already exists. Create a worktree for a new branch, then
-	// remove the worktree (but keep the branch), then re-add using existing branch.
+	// remove the worktree with KeepBranch (preserving the branch), then re-add using existing branch.
 	if err := Add(repoName, "reuse-branch", AddOptions{NoSymlinks: true}); err != nil {
 		t.Fatalf("first Add() error: %v", err)
 	}
 
 	// Remove it
-	if err := Remove(repoName, "reuse-branch"); err != nil {
+	if err := RemoveWithOptions(repoName, "reuse-branch", RemoveOptions{KeepBranch: true}); err != nil {
 		t.Fatalf("Remove() error: %v", err)
 	}
 
@@ -326,6 +326,12 @@ func TestRemove(t *testing.T) {
 	if _, exists := repo.Worktrees["to-remove"]; exists {
 		t.Error("worktree still in config after Remove()")
 	}
+
+	// Verify branch was deleted (clean branch should be deleted by default)
+	bareDir := repository.BareDir(repoName)
+	if git.BranchExists(bareDir, "to-remove") {
+		t.Error("branch still exists after Remove() of clean worktree, want deleted")
+	}
 }
 
 func TestRemoveNonexistentRepo(t *testing.T) {
@@ -334,6 +340,114 @@ func TestRemoveNonexistentRepo(t *testing.T) {
 	err := Remove("nonexistent", "some-wt")
 	if err == nil {
 		t.Error("Remove() for nonexistent repository returned nil error, want error")
+	}
+}
+
+func TestRemoveKeepsBranchWhenDirty(t *testing.T) {
+	basePath, repoName := setupTestEnv(t)
+	bareDir := repository.BareDir(repoName)
+
+	if err := Add(repoName, "dirty-branch", AddOptions{NoSymlinks: true}); err != nil {
+		t.Fatalf("Add() error: %v", err)
+	}
+	config.Reload()
+
+	// Make the worktree dirty with uncommitted changes
+	testutil.WriteFile(t, filepath.Join(basePath, repoName, "dirty-branch", "uncommitted.txt"), "dirty")
+
+	if err := Remove(repoName, "dirty-branch"); err != nil {
+		t.Fatalf("Remove() error: %v", err)
+	}
+
+	// Branch should still exist because it had uncommitted changes
+	if !git.BranchExists(bareDir, "dirty-branch") {
+		t.Error("branch was deleted despite having uncommitted changes, want kept")
+	}
+}
+
+func TestRemoveKeepsBranchWithUnpushedCommits(t *testing.T) {
+	basePath, repoName := setupTestEnv(t)
+	bareDir := repository.BareDir(repoName)
+
+	if err := Add(repoName, "unpushed-branch", AddOptions{NoSymlinks: true}); err != nil {
+		t.Fatalf("Add() error: %v", err)
+	}
+	config.Reload()
+
+	// Create a commit that is not pushed (ahead of upstream)
+	wtDir := filepath.Join(basePath, repoName, "unpushed-branch")
+	testutil.WriteFile(t, filepath.Join(wtDir, "new-file.txt"), "content")
+	testutil.RunGit(t, wtDir, "add", ".")
+	testutil.RunGit(t, wtDir, "commit", "-m", "unpushed commit")
+
+	if err := Remove(repoName, "unpushed-branch"); err != nil {
+		t.Fatalf("Remove() error: %v", err)
+	}
+
+	// Branch should still exist because it has unpushed commits
+	if !git.BranchExists(bareDir, "unpushed-branch") {
+		t.Error("branch was deleted despite having unpushed commits, want kept")
+	}
+}
+
+func TestRemoveKeepsBranchFlag(t *testing.T) {
+	_, repoName := setupTestEnv(t)
+	bareDir := repository.BareDir(repoName)
+
+	if err := Add(repoName, "keep-me", AddOptions{NoSymlinks: true}); err != nil {
+		t.Fatalf("Add() error: %v", err)
+	}
+	config.Reload()
+
+	if err := RemoveWithOptions(repoName, "keep-me", RemoveOptions{KeepBranch: true}); err != nil {
+		t.Fatalf("RemoveWithOptions() error: %v", err)
+	}
+
+	// Branch should still exist because KeepBranch was set
+	if !git.BranchExists(bareDir, "keep-me") {
+		t.Error("branch was deleted despite KeepBranch=true, want kept")
+	}
+}
+
+func TestRemoveForceBranchDeletesDirty(t *testing.T) {
+	basePath, repoName := setupTestEnv(t)
+	bareDir := repository.BareDir(repoName)
+
+	if err := Add(repoName, "force-delete", AddOptions{NoSymlinks: true}); err != nil {
+		t.Fatalf("Add() error: %v", err)
+	}
+	config.Reload()
+
+	// Make the worktree dirty
+	testutil.WriteFile(t, filepath.Join(basePath, repoName, "force-delete", "uncommitted.txt"), "dirty")
+
+	if err := RemoveWithOptions(repoName, "force-delete", RemoveOptions{ForceBranch: true}); err != nil {
+		t.Fatalf("RemoveWithOptions() error: %v", err)
+	}
+
+	// Branch should be deleted because ForceBranch was set
+	if git.BranchExists(bareDir, "force-delete") {
+		t.Error("branch still exists despite ForceBranch=true, want deleted")
+	}
+}
+
+func TestRemoveNeverDeletesDefaultBranch(t *testing.T) {
+	_, repoName := setupTestEnv(t)
+	bareDir := repository.BareDir(repoName)
+
+	// Unpin main so it can be removed
+	if err := Unpin(repoName, "main"); err != nil {
+		t.Fatalf("Unpin() error: %v", err)
+	}
+	config.Reload()
+
+	if err := RemoveWithOptions(repoName, "main", RemoveOptions{ForceBranch: true}); err != nil {
+		t.Fatalf("RemoveWithOptions() error: %v", err)
+	}
+
+	// Default branch should never be deleted even with ForceBranch
+	if !git.BranchExists(bareDir, "main") {
+		t.Error("default branch was deleted, should never be deleted")
 	}
 }
 
