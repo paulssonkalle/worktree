@@ -60,7 +60,7 @@ func TestFullWorkflow(t *testing.T) {
 	basePath, srcDir := setupIntegrationEnv(t)
 
 	// === 1. Add repository ===
-	if err := repository.Add("webapp", srcDir, "", ""); err != nil {
+	if err := repository.Add("webapp", srcDir, "", "", true); err != nil {
 		t.Fatalf("repository.Add() error: %v", err)
 	}
 
@@ -100,7 +100,7 @@ func TestFullWorkflow(t *testing.T) {
 	}
 
 	// === 2. Add feature worktree ===
-	if err := worktree.Add("webapp", "feature-auth", ""); err != nil {
+	if err := worktree.Add("webapp", "feature-auth", worktree.AddOptions{NoSymlinks: true}); err != nil {
 		t.Fatalf("worktree.Add() error: %v", err)
 	}
 
@@ -209,17 +209,17 @@ func TestMultipleReposIsolation(t *testing.T) {
 	_, srcDir := setupIntegrationEnv(t)
 
 	// Add two repositories from the same source
-	if err := repository.Add("repo-alpha", srcDir, "", ""); err != nil {
+	if err := repository.Add("repo-alpha", srcDir, "", "", true); err != nil {
 		t.Fatalf("repository.Add(repo-alpha) error: %v", err)
 	}
 	config.Reload()
-	if err := repository.Add("repo-beta", srcDir, "", ""); err != nil {
+	if err := repository.Add("repo-beta", srcDir, "", "", true); err != nil {
 		t.Fatalf("repository.Add(repo-beta) error: %v", err)
 	}
 	config.Reload()
 
 	// Add worktree to alpha only
-	if err := worktree.Add("repo-alpha", "feature-x", ""); err != nil {
+	if err := worktree.Add("repo-alpha", "feature-x", worktree.AddOptions{NoSymlinks: true}); err != nil {
 		t.Fatalf("worktree.Add(repo-alpha) error: %v", err)
 	}
 	config.Reload()
@@ -260,17 +260,17 @@ func TestMultipleReposIsolation(t *testing.T) {
 func TestCleanupIntegration(t *testing.T) {
 	_, srcDir := setupIntegrationEnv(t)
 
-	if err := repository.Add("cleanup-test", srcDir, "", ""); err != nil {
+	if err := repository.Add("cleanup-test", srcDir, "", "", true); err != nil {
 		t.Fatalf("repository.Add() error: %v", err)
 	}
 	config.Reload()
 
 	// Add two feature worktrees (unpinned)
-	if err := worktree.Add("cleanup-test", "stale-feature", ""); err != nil {
+	if err := worktree.Add("cleanup-test", "stale-feature", worktree.AddOptions{NoSymlinks: true}); err != nil {
 		t.Fatalf("worktree.Add(stale) error: %v", err)
 	}
 	config.Reload()
-	if err := worktree.Add("cleanup-test", "fresh-feature", ""); err != nil {
+	if err := worktree.Add("cleanup-test", "fresh-feature", worktree.AddOptions{NoSymlinks: true}); err != nil {
 		t.Fatalf("worktree.Add(fresh) error: %v", err)
 	}
 	config.Reload()
@@ -317,7 +317,7 @@ func TestRepoListSorted(t *testing.T) {
 	names := []string{"zulu", "alpha", "mike", "bravo"}
 	for _, name := range names {
 		config.Reload()
-		if err := repository.Add(name, srcDir, "", ""); err != nil {
+		if err := repository.Add(name, srcDir, "", "", true); err != nil {
 			t.Fatalf("repository.Add(%s) error: %v", name, err)
 		}
 	}
@@ -345,7 +345,7 @@ func TestFetchIntegration(t *testing.T) {
 	_, srcDir := setupIntegrationEnv(t)
 
 	config.Reload()
-	if err := repository.Add("fetch-test", srcDir, "", ""); err != nil {
+	if err := repository.Add("fetch-test", srcDir, "", "", true); err != nil {
 		t.Fatalf("repository.Add() error: %v", err)
 	}
 
@@ -406,13 +406,13 @@ func TestRenameIntegration(t *testing.T) {
 	basePath, srcDir := setupIntegrationEnv(t)
 
 	// === 1. Add repository ===
-	if err := repository.Add("rename-test", srcDir, "", ""); err != nil {
+	if err := repository.Add("rename-test", srcDir, "", "", true); err != nil {
 		t.Fatalf("repository.Add() error: %v", err)
 	}
 	config.Reload()
 
 	// === 2. Add feature worktree ===
-	if err := worktree.Add("rename-test", "feature/old-name", ""); err != nil {
+	if err := worktree.Add("rename-test", "feature/old-name", worktree.AddOptions{NoSymlinks: true}); err != nil {
 		t.Fatalf("worktree.Add() error: %v", err)
 	}
 	config.Reload()

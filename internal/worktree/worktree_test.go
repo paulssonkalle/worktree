@@ -43,7 +43,7 @@ func setupTestEnv(t *testing.T) (string, string) {
 	testutil.RunGit(t, srcDir, "commit", "-m", "initial commit")
 
 	// Add the repository (this clones bare + creates "main" worktree pinned)
-	if err := repository.Add("testproj", srcDir, "", ""); err != nil {
+	if err := repository.Add("testproj", srcDir, "", "", true); err != nil {
 		t.Fatalf("repository.Add() error: %v", err)
 	}
 	config.Reload()
@@ -54,7 +54,7 @@ func setupTestEnv(t *testing.T) (string, string) {
 func TestAdd(t *testing.T) {
 	basePath, repoName := setupTestEnv(t)
 
-	if err := Add(repoName, "feature-x", ""); err != nil {
+	if err := Add(repoName, "feature-x", AddOptions{NoSymlinks: true}); err != nil {
 		t.Fatalf("Add() error: %v", err)
 	}
 
@@ -78,7 +78,7 @@ func TestAddExistingBranch(t *testing.T) {
 
 	// "main" branch already exists. Create a worktree for a new branch, then
 	// remove the worktree (but keep the branch), then re-add using existing branch.
-	if err := Add(repoName, "reuse-branch", ""); err != nil {
+	if err := Add(repoName, "reuse-branch", AddOptions{NoSymlinks: true}); err != nil {
 		t.Fatalf("first Add() error: %v", err)
 	}
 
@@ -90,7 +90,7 @@ func TestAddExistingBranch(t *testing.T) {
 	config.Reload()
 
 	// Re-add - the branch "reuse-branch" now exists locally
-	if err := Add(repoName, "reuse-branch", ""); err != nil {
+	if err := Add(repoName, "reuse-branch", AddOptions{NoSymlinks: true}); err != nil {
 		t.Fatalf("second Add() (existing branch) error: %v", err)
 	}
 }
@@ -98,11 +98,11 @@ func TestAddExistingBranch(t *testing.T) {
 func TestAddDuplicateWorktree(t *testing.T) {
 	_, repoName := setupTestEnv(t)
 
-	if err := Add(repoName, "feature-dup", ""); err != nil {
+	if err := Add(repoName, "feature-dup", AddOptions{NoSymlinks: true}); err != nil {
 		t.Fatalf("first Add() error: %v", err)
 	}
 
-	err := Add(repoName, "feature-dup", "")
+	err := Add(repoName, "feature-dup", AddOptions{NoSymlinks: true})
 	if err == nil {
 		t.Error("second Add() with same name returned nil error, want error")
 	}
@@ -111,7 +111,7 @@ func TestAddDuplicateWorktree(t *testing.T) {
 func TestAddNonexistentRepo(t *testing.T) {
 	setupTestEnv(t)
 
-	err := Add("nonexistent", "some-branch", "")
+	err := Add("nonexistent", "some-branch", AddOptions{NoSymlinks: true})
 	if err == nil {
 		t.Error("Add() for nonexistent repository returned nil error, want error")
 	}
@@ -143,7 +143,7 @@ func TestAddRemoteOnlyBranch(t *testing.T) {
 	testutil.RunGit(t, srcDir, "commit", "-m", "initial commit")
 
 	repoName := "testproj"
-	if err := repository.Add(repoName, srcDir, "", ""); err != nil {
+	if err := repository.Add(repoName, srcDir, "", "", true); err != nil {
 		t.Fatalf("repository.Add() error: %v", err)
 	}
 	config.Reload()
@@ -157,7 +157,7 @@ func TestAddRemoteOnlyBranch(t *testing.T) {
 	testutil.RunGit(t, srcDir, "checkout", "main")
 
 	// Add the worktree - this should fetch and check out the remote branch
-	if err := Add(repoName, "feature/remote-only", ""); err != nil {
+	if err := Add(repoName, "feature/remote-only", AddOptions{NoSymlinks: true}); err != nil {
 		t.Fatalf("Add() error for remote-only branch: %v", err)
 	}
 
@@ -185,7 +185,7 @@ func TestAddRemoteOnlyBranch(t *testing.T) {
 func TestRemove(t *testing.T) {
 	basePath, repoName := setupTestEnv(t)
 
-	if err := Add(repoName, "to-remove", ""); err != nil {
+	if err := Add(repoName, "to-remove", AddOptions{NoSymlinks: true}); err != nil {
 		t.Fatalf("Add() error: %v", err)
 	}
 
@@ -236,7 +236,7 @@ func TestList(t *testing.T) {
 	}
 
 	// Add another worktree
-	if err := Add(repoName, "feature-a", ""); err != nil {
+	if err := Add(repoName, "feature-a", AddOptions{NoSymlinks: true}); err != nil {
 		t.Fatalf("Add() error: %v", err)
 	}
 
@@ -294,11 +294,11 @@ func TestListAll(t *testing.T) {
 	testutil.RunGit(t, srcDir, "commit", "-m", "init")
 
 	// Add two repositories
-	if err := repository.Add("repo-a", srcDir, "", ""); err != nil {
+	if err := repository.Add("repo-a", srcDir, "", "", true); err != nil {
 		t.Fatalf("repository.Add(repo-a) error: %v", err)
 	}
 	config.Reload()
-	if err := repository.Add("repo-b", srcDir, "", ""); err != nil {
+	if err := repository.Add("repo-b", srcDir, "", "", true); err != nil {
 		t.Fatalf("repository.Add(repo-b) error: %v", err)
 	}
 	config.Reload()
@@ -318,7 +318,7 @@ func TestPin(t *testing.T) {
 	_, repoName := setupTestEnv(t)
 
 	// Add an unpinned worktree
-	if err := Add(repoName, "feature-pin", ""); err != nil {
+	if err := Add(repoName, "feature-pin", AddOptions{NoSymlinks: true}); err != nil {
 		t.Fatalf("Add() error: %v", err)
 	}
 
@@ -439,7 +439,7 @@ func TestCleanup(t *testing.T) {
 	_, repoName := setupTestEnv(t)
 
 	// Add an unpinned worktree
-	if err := Add(repoName, "old-feature", ""); err != nil {
+	if err := Add(repoName, "old-feature", AddOptions{NoSymlinks: true}); err != nil {
 		t.Fatalf("Add() error: %v", err)
 	}
 	config.Reload()
@@ -468,7 +468,7 @@ func TestCleanup(t *testing.T) {
 func TestCleanupDryRunDoesNotRemove(t *testing.T) {
 	basePath, repoName := setupTestEnv(t)
 
-	if err := Add(repoName, "dry-run-wt", ""); err != nil {
+	if err := Add(repoName, "dry-run-wt", AddOptions{NoSymlinks: true}); err != nil {
 		t.Fatalf("Add() error: %v", err)
 	}
 	config.Reload()
@@ -495,7 +495,7 @@ func TestCleanupDryRunDoesNotRemove(t *testing.T) {
 func TestCleanupActualRemoval(t *testing.T) {
 	basePath, repoName := setupTestEnv(t)
 
-	if err := Add(repoName, "remove-me", ""); err != nil {
+	if err := Add(repoName, "remove-me", AddOptions{NoSymlinks: true}); err != nil {
 		t.Fatalf("Add() error: %v", err)
 	}
 	config.Reload()
@@ -625,7 +625,7 @@ func TestPruneNonexistentRepo(t *testing.T) {
 func TestRename(t *testing.T) {
 	basePath, repoName := setupTestEnv(t)
 
-	if err := Add(repoName, "feature-x", ""); err != nil {
+	if err := Add(repoName, "feature-x", AddOptions{NoSymlinks: true}); err != nil {
 		t.Fatalf("Add() error: %v", err)
 	}
 	config.Reload()
@@ -670,7 +670,7 @@ func TestRename(t *testing.T) {
 func TestRenamePreservesPinnedState(t *testing.T) {
 	_, repoName := setupTestEnv(t)
 
-	if err := Add(repoName, "feature-pinned", ""); err != nil {
+	if err := Add(repoName, "feature-pinned", AddOptions{NoSymlinks: true}); err != nil {
 		t.Fatalf("Add() error: %v", err)
 	}
 	config.Reload()
@@ -698,7 +698,7 @@ func TestRenamePreservesPinnedState(t *testing.T) {
 func TestRenameWithSlashes(t *testing.T) {
 	basePath, repoName := setupTestEnv(t)
 
-	if err := Add(repoName, "feature/old-name", ""); err != nil {
+	if err := Add(repoName, "feature/old-name", AddOptions{NoSymlinks: true}); err != nil {
 		t.Fatalf("Add() error: %v", err)
 	}
 	config.Reload()
@@ -743,10 +743,10 @@ func TestRenameNonexistentWorktree(t *testing.T) {
 func TestRenameTargetExists(t *testing.T) {
 	_, repoName := setupTestEnv(t)
 
-	if err := Add(repoName, "feature-a", ""); err != nil {
+	if err := Add(repoName, "feature-a", AddOptions{NoSymlinks: true}); err != nil {
 		t.Fatalf("Add(feature-a) error: %v", err)
 	}
-	if err := Add(repoName, "feature-b", ""); err != nil {
+	if err := Add(repoName, "feature-b", AddOptions{NoSymlinks: true}); err != nil {
 		t.Fatalf("Add(feature-b) error: %v", err)
 	}
 	config.Reload()

@@ -11,8 +11,12 @@ import (
 	"github.com/paulssonkalle/worktree/internal/zoxide"
 )
 
+// SetupSymlinksFunc is a callback for setting up symlinks after worktree creation.
+// It is set by the worktree package to avoid circular imports.
+var SetupSymlinksFunc func(repoDir, worktreePath string) error
+
 // Add creates a new repository by cloning a bare repo.
-func Add(name, repoURL, defaultBranch, basePath string) error {
+func Add(name, repoURL, defaultBranch, basePath string, noSymlinks bool) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
@@ -86,6 +90,13 @@ func Add(name, repoURL, defaultBranch, basePath string) error {
 	if cfg.Zoxide && zoxide.IsAvailable() {
 		if err := zoxide.Add(wtPath); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: could not add to zoxide: %v\n", err)
+		}
+	}
+
+	// Set up shared IDE settings symlinks
+	if !noSymlinks && SetupSymlinksFunc != nil {
+		if err := SetupSymlinksFunc(repoDir, wtPath); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not set up symlinks: %v\n", err)
 		}
 	}
 

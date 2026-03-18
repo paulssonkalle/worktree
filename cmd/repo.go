@@ -22,7 +22,8 @@ var repoAddCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		defaultBranch, _ := cmd.Flags().GetString("default-branch")
 		basePath, _ := cmd.Flags().GetString("base-path")
-		return repository.Add(args[0], args[1], defaultBranch, basePath)
+		noSymlinks, _ := cmd.Flags().GetBool("no-symlinks")
+		return repository.Add(args[0], args[1], defaultBranch, basePath, noSymlinks)
 	},
 }
 
@@ -80,5 +81,6 @@ func init() {
 
 	repoAddCmd.Flags().String("default-branch", "", "default branch name (auto-detected if not set)")
 	repoAddCmd.Flags().String("base-path", "", "override the global base path for this repository")
+	repoAddCmd.Flags().Bool("no-symlinks", false, "skip creating shared IDE settings symlinks")
 	repoRemoveCmd.Flags().Bool("force", false, "force removal of repository and all worktrees")
 }

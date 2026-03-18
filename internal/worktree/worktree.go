@@ -27,8 +27,14 @@ type Info struct {
 	LastMod time.Time
 }
 
+// AddOptions configures worktree creation.
+type AddOptions struct {
+	BaseBranch string
+	NoSymlinks bool
+}
+
 // Add creates a new worktree in a repository.
-func Add(repoName, branchName, baseBranch string) error {
+func Add(repoName, branchName string, opts AddOptions) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
@@ -39,6 +45,7 @@ func Add(repoName, branchName, baseBranch string) error {
 		return fmt.Errorf("repository %q not found", repoName)
 	}
 
+	baseBranch := opts.BaseBranch
 	if baseBranch == "" {
 		baseBranch = repo.DefaultBranch
 	}
@@ -106,6 +113,14 @@ func Add(repoName, branchName, baseBranch string) error {
 	}
 
 	fmt.Printf("Worktree %q created at %s\n", branchName, wtPath)
+
+	// Set up shared IDE settings symlinks
+	if !opts.NoSymlinks {
+		repoDir := repository.RepositoryDir(repoName)
+		if err := SetupSymlinks(repoDir, wtPath); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not set up symlinks: %v\n", err)
+		}
+	}
 
 	if cfg.Zoxide && zoxide.IsAvailable() {
 		if err := zoxide.Add(wtPath); err != nil {

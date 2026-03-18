@@ -45,7 +45,7 @@ func setupTestEnv(t *testing.T) (string, string) {
 func TestAdd(t *testing.T) {
 	basePath, srcDir := setupTestEnv(t)
 
-	if err := Add("myrepo", srcDir, "", ""); err != nil {
+	if err := Add("myrepo", srcDir, "", "", false); err != nil {
 		t.Fatalf("Add() error: %v", err)
 	}
 
@@ -97,7 +97,7 @@ func TestAdd(t *testing.T) {
 func TestAddWithExplicitDefaultBranch(t *testing.T) {
 	_, srcDir := setupTestEnv(t)
 
-	if err := Add("myrepo", srcDir, "main", ""); err != nil {
+	if err := Add("myrepo", srcDir, "main", "", false); err != nil {
 		t.Fatalf("Add() error: %v", err)
 	}
 
@@ -112,11 +112,11 @@ func TestAddWithExplicitDefaultBranch(t *testing.T) {
 func TestAddDuplicateRepo(t *testing.T) {
 	_, srcDir := setupTestEnv(t)
 
-	if err := Add("myrepo", srcDir, "", ""); err != nil {
+	if err := Add("myrepo", srcDir, "", "", false); err != nil {
 		t.Fatalf("first Add() error: %v", err)
 	}
 
-	err := Add("myrepo", srcDir, "", "")
+	err := Add("myrepo", srcDir, "", "", false)
 	if err == nil {
 		t.Error("second Add() returned nil error, want duplicate error")
 	}
@@ -125,7 +125,7 @@ func TestAddDuplicateRepo(t *testing.T) {
 func TestAddInvalidRepo(t *testing.T) {
 	setupTestEnv(t)
 
-	err := Add("bad-repo", "/nonexistent/repo", "main", "")
+	err := Add("bad-repo", "/nonexistent/repo", "main", "", false)
 	if err == nil {
 		t.Error("Add() with invalid repo URL returned nil error, want error")
 	}
@@ -134,7 +134,7 @@ func TestAddInvalidRepo(t *testing.T) {
 func TestRemove(t *testing.T) {
 	basePath, srcDir := setupTestEnv(t)
 
-	if err := Add("myrepo", srcDir, "", ""); err != nil {
+	if err := Add("myrepo", srcDir, "", "", false); err != nil {
 		t.Fatalf("Add() error: %v", err)
 	}
 
@@ -185,11 +185,11 @@ func TestList(t *testing.T) {
 	}
 
 	// Add two repositories
-	if err := Add("beta-repo", srcDir, "", ""); err != nil {
+	if err := Add("beta-repo", srcDir, "", "", false); err != nil {
 		t.Fatalf("Add(beta) error: %v", err)
 	}
 	config.Reload()
-	if err := Add("alpha-repo", srcDir, "", ""); err != nil {
+	if err := Add("alpha-repo", srcDir, "", "", false); err != nil {
 		t.Fatalf("Add(alpha) error: %v", err)
 	}
 
@@ -214,7 +214,7 @@ func TestList(t *testing.T) {
 func TestGet(t *testing.T) {
 	_, srcDir := setupTestEnv(t)
 
-	if err := Add("myrepo", srcDir, "", ""); err != nil {
+	if err := Add("myrepo", srcDir, "", "", false); err != nil {
 		t.Fatalf("Add() error: %v", err)
 	}
 
@@ -245,7 +245,7 @@ func TestAddWithCustomBasePath(t *testing.T) {
 	tmpDir := t.TempDir()
 	customBase := filepath.Join(tmpDir, "custom-worktrees")
 
-	if err := Add("custom-repo", srcDir, "", customBase); err != nil {
+	if err := Add("custom-repo", srcDir, "", customBase, false); err != nil {
 		t.Fatalf("Add() error: %v", err)
 	}
 
