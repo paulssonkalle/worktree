@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/paulssonkalle/worktree/internal/config"
+	"github.com/paulssonkalle/worktree/internal/git"
 	"github.com/paulssonkalle/worktree/internal/repository"
 	"github.com/paulssonkalle/worktree/internal/testutil"
 )
@@ -618,5 +619,140 @@ func TestPruneNonexistentRepo(t *testing.T) {
 	_, err := Prune("nonexistent", true)
 	if err == nil {
 		t.Error("Prune() for nonexistent repository returned nil error, want error")
+	}
+}
+
+func TestRename(t *testing.T) {
+	basePath, repoName := setupTestEnv(t)
+
+	if err := Add(repoName, "feature-x", ""); err != nil {
+		t.Fatalf("Add() error: %v", err)
+	}
+	config.Reload()
+
+	if err := Rename(repoName, "feature-x", "feature-y"); err != nil {
+		t.Fatalf("Rename() error: %v", err)
+	}
+
+	// Verify old directory is gone
+	oldDir := filepath.Join(basePath, repoName, "feature-x")
+	if _, err := os.Stat(oldDir); !os.IsNotExist(err) {
+		t.Error("old worktree directory still exists after Rename()")
+	}
+
+	// Verify new directory exists
+	newDir := filepath.Join(basePath, repoName, "feature-y")
+	if _, err := os.Stat(newDir); os.IsNotExist(err) {
+		t.Error("new worktree directory was not created after Rename()")
+	}
+
+	// Verify config updated
+	config.Reload()
+	cfg, _ := config.Load()
+	repo := cfg.Repositories[repoName]
+	if _, exists := repo.Worktrees["feature-x"]; exists {
+		t.Error("old worktree key still in config after Rename()")
+	}
+	if _, exists := repo.Worktrees["feature-y"]; !exists {
+		t.Error("new worktree key not found in config after Rename()")
+	}
+
+	// Verify git branches
+	bareDir := repository.BareDir(repoName)
+	if git.BranchExists(bareDir, "feature-x") {
+		t.Error("old branch still exists in git after Rename()")
+	}
+	if !git.BranchExists(bareDir, "feature-y") {
+		t.Error("new branch does not exist in git after Rename()")
+	}
+}
+
+func TestRenamePreservesPinnedState(t *testing.T) {
+	_, repoName := setupTestEnv(t)
+
+	if err := Add(repoName, "feature-pinned", ""); err != nil {
+		t.Fatalf("Add() error: %v", err)
+	}
+	config.Reload()
+
+	if err := Pin(repoName, "feature-pinned"); err != nil {
+		t.Fatalf("Pin() error: %v", err)
+	}
+	config.Reload()
+
+	if err := Rename(repoName, "feature-pinned", "feature-renamed"); err != nil {
+		t.Fatalf("Rename() error: %v", err)
+	}
+
+	config.Reload()
+	cfg, _ := config.Load()
+	wt, exists := cfg.Repositories[repoName].Worktrees["feature-renamed"]
+	if !exists {
+		t.Fatal("renamed worktree not found in config")
+	}
+	if !wt.Pinned {
+		t.Error("Pinned = false after Rename(), want true (should preserve pinned state)")
+	}
+}
+
+func TestRenameWithSlashes(t *testing.T) {
+	basePath, repoName := setupTestEnv(t)
+
+	if err := Add(repoName, "feature/old-name", ""); err != nil {
+		t.Fatalf("Add() error: %v", err)
+	}
+	config.Reload()
+
+	if err := Rename(repoName, "feature/old-name", "feature/new-name"); err != nil {
+		t.Fatalf("Rename() error: %v", err)
+	}
+
+	// Verify new directory uses sanitized name
+	newDir := filepath.Join(basePath, repoName, "feature-new-name")
+	if _, err := os.Stat(newDir); os.IsNotExist(err) {
+		t.Error("new worktree directory (sanitized) was not created after Rename()")
+	}
+
+	// Verify config key is sanitized
+	config.Reload()
+	cfg, _ := config.Load()
+	repo := cfg.Repositories[repoName]
+	if _, exists := repo.Worktrees["feature-new-name"]; !exists {
+		t.Error("new worktree key (sanitized) not found in config after Rename()")
+	}
+}
+
+func TestRenameNonexistentRepo(t *testing.T) {
+	setupTestEnv(t)
+
+	err := Rename("nonexistent", "feature-x", "feature-y")
+	if err == nil {
+		t.Error("Rename() for nonexistent repository returned nil error, want error")
+	}
+}
+
+func TestRenameNonexistentWorktree(t *testing.T) {
+	_, repoName := setupTestEnv(t)
+
+	err := Rename(repoName, "nonexistent-wt", "feature-y")
+	if err == nil {
+		t.Error("Rename() for nonexistent worktree returned nil error, want error")
+	}
+}
+
+func TestRenameTargetExists(t *testing.T) {
+	_, repoName := setupTestEnv(t)
+
+	if err := Add(repoName, "feature-a", ""); err != nil {
+		t.Fatalf("Add(feature-a) error: %v", err)
+	}
+	if err := Add(repoName, "feature-b", ""); err != nil {
+		t.Fatalf("Add(feature-b) error: %v", err)
+	}
+	config.Reload()
+
+	err := Rename(repoName, "feature-a", "feature-b")
+	if err == nil {
+		t.Error("Rename() to existing target returned nil error, want error")
 	}
 }

@@ -192,6 +192,18 @@ func UnsetUpstreamTracking(dir, branch string) error {
 	return err
 }
 
+// RenameBranch renames a local branch from oldName to newName.
+func RenameBranch(bareDir, oldName, newName string) error {
+	_, err := run(bareDir, "branch", "-m", oldName, newName)
+	return err
+}
+
+// MoveWorktree moves a worktree to a new path.
+func MoveWorktree(bareDir, oldPath, newPath string) error {
+	_, err := run(bareDir, "worktree", "move", oldPath, newPath)
+	return err
+}
+
 // DefaultBranch detects the default branch of the remote.
 func DefaultBranch(bareDir string) (string, error) {
 	out, err := run(bareDir, "symbolic-ref", "refs/remotes/origin/HEAD")

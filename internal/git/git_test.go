@@ -603,3 +603,92 @@ func TestUnsetUpstreamTracking(t *testing.T) {
 		t.Errorf("upstream still set after UnsetUpstreamTracking(), branch -vv: %s", branchOut)
 	}
 }
+
+func TestRenameBranch(t *testing.T) {
+	bareDir := initBareRepo(t)
+
+	// Create a branch to rename
+	testutil.RunGit(t, bareDir, "branch", "old-name", "main")
+
+	if !BranchExists(bareDir, "old-name") {
+		t.Fatal("branch 'old-name' doesn't exist before rename")
+	}
+
+	if err := RenameBranch(bareDir, "old-name", "new-name"); err != nil {
+		t.Fatalf("RenameBranch() error: %v", err)
+	}
+
+	if BranchExists(bareDir, "old-name") {
+		t.Error("branch 'old-name' still exists after RenameBranch()")
+	}
+	if !BranchExists(bareDir, "new-name") {
+		t.Error("branch 'new-name' doesn't exist after RenameBranch()")
+	}
+}
+
+func TestRenameBranchNonexistent(t *testing.T) {
+	bareDir := initBareRepo(t)
+
+	err := RenameBranch(bareDir, "nonexistent-branch", "new-name")
+	if err == nil {
+		t.Error("RenameBranch() with nonexistent branch returned nil error, want error")
+	}
+}
+
+func TestMoveWorktree(t *testing.T) {
+	bareDir := initBareRepo(t)
+	tmpDir := t.TempDir()
+	oldPath := filepath.Join(tmpDir, "old-wt")
+	newPath := filepath.Join(tmpDir, "new-wt")
+
+	if err := AddWorktree(bareDir, oldPath, "move-branch", "main"); err != nil {
+		t.Fatalf("AddWorktree() error: %v", err)
+	}
+
+	if err := MoveWorktree(bareDir, oldPath, newPath); err != nil {
+		t.Fatalf("MoveWorktree() error: %v", err)
+	}
+
+	// Old path should no longer exist
+	if _, err := os.Stat(oldPath); !os.IsNotExist(err) {
+		t.Error("old worktree path still exists after MoveWorktree()")
+	}
+
+	// New path should exist
+	if _, err := os.Stat(newPath); os.IsNotExist(err) {
+		t.Error("new worktree path does not exist after MoveWorktree()")
+	}
+
+	// Verify worktree is listed at new path with correct branch
+	resolvedNewPath := resolvePath(t, newPath)
+	worktrees, err := ListWorktrees(bareDir)
+	if err != nil {
+		t.Fatalf("ListWorktrees() error: %v", err)
+	}
+
+	var found bool
+	for _, wt := range worktrees {
+		if wt.Path == resolvedNewPath {
+			found = true
+			if wt.Branch != "move-branch" {
+				t.Errorf("Branch = %q, want %q", wt.Branch, "move-branch")
+			}
+		}
+	}
+	if !found {
+		t.Errorf("moved worktree not found at %q in ListWorktrees() output", resolvedNewPath)
+		for _, wt := range worktrees {
+			t.Logf("  path=%q branch=%q bare=%v", wt.Path, wt.Branch, wt.Bare)
+		}
+	}
+}
+
+func TestMoveWorktreeNonexistent(t *testing.T) {
+	bareDir := initBareRepo(t)
+	tmpDir := t.TempDir()
+
+	err := MoveWorktree(bareDir, filepath.Join(tmpDir, "nonexistent-wt"), filepath.Join(tmpDir, "dest-wt"))
+	if err == nil {
+		t.Error("MoveWorktree() with nonexistent path returned nil error, want error")
+	}
+}

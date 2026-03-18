@@ -399,3 +399,108 @@ func TestFetchIntegration(t *testing.T) {
 		t.Errorf("feature-remote not found after fetch, got branches: %v", branches)
 	}
 }
+
+// TestRenameIntegration verifies the full rename workflow:
+// add repo, add worktree, pin it, rename it, then verify disk, config, and git state.
+func TestRenameIntegration(t *testing.T) {
+	basePath, srcDir := setupIntegrationEnv(t)
+
+	// === 1. Add repository ===
+	if err := repository.Add("rename-test", srcDir, "", ""); err != nil {
+		t.Fatalf("repository.Add() error: %v", err)
+	}
+	config.Reload()
+
+	// === 2. Add feature worktree ===
+	if err := worktree.Add("rename-test", "feature/old-name", ""); err != nil {
+		t.Fatalf("worktree.Add() error: %v", err)
+	}
+	config.Reload()
+
+	// === 3. Pin the worktree ===
+	if err := worktree.Pin("rename-test", "feature/old-name"); err != nil {
+		t.Fatalf("Pin() error: %v", err)
+	}
+	config.Reload()
+
+	// Verify pinned before rename
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load config: %v", err)
+	}
+	if !cfg.Repositories["rename-test"].Worktrees["feature-old-name"].Pinned {
+		t.Fatal("feature/old-name should be pinned before rename")
+	}
+
+	// === 4. Rename worktree ===
+	if err := worktree.Rename("rename-test", "feature/old-name", "feature/new-name"); err != nil {
+		t.Fatalf("worktree.Rename() error: %v", err)
+	}
+	config.Reload()
+
+	repoDir := filepath.Join(basePath, "rename-test")
+	oldDir := filepath.Join(repoDir, "feature-old-name")
+	newDir := filepath.Join(repoDir, "feature-new-name")
+
+	// === 5a. Old directory is gone ===
+	if _, err := os.Stat(oldDir); !os.IsNotExist(err) {
+		t.Error("old worktree directory still exists after Rename()")
+	}
+
+	// === 5b. New directory exists ===
+	if _, err := os.Stat(newDir); os.IsNotExist(err) {
+		t.Error("new worktree directory was not created after Rename()")
+	}
+
+	// === 5c. Files from source repo are present in new directory ===
+	if _, err := os.Stat(filepath.Join(newDir, "README.md")); os.IsNotExist(err) {
+		t.Error("README.md not found in renamed worktree")
+	}
+	if _, err := os.Stat(filepath.Join(newDir, "src", "main.go")); os.IsNotExist(err) {
+		t.Error("src/main.go not found in renamed worktree")
+	}
+
+	// === 5d. Config entry moved from old sanitized name to new, still pinned ===
+	cfg, err = config.Load()
+	if err != nil {
+		t.Fatalf("Load config after rename: %v", err)
+	}
+	repo := cfg.Repositories["rename-test"]
+	if _, exists := repo.Worktrees["feature-old-name"]; exists {
+		t.Error("old worktree config entry still exists after Rename()")
+	}
+	newWT, exists := repo.Worktrees["feature-new-name"]
+	if !exists {
+		t.Fatal("new worktree config entry not found after Rename()")
+	}
+	if !newWT.Pinned {
+		t.Error("renamed worktree should still be pinned")
+	}
+
+	// === 5e. Old git branch gone, new git branch exists ===
+	bareDir := repository.BareDir("rename-test")
+	if git.BranchExists(bareDir, "feature/old-name") {
+		t.Error("old branch feature/old-name still exists in bare repo")
+	}
+	if !git.BranchExists(bareDir, "feature/new-name") {
+		t.Error("new branch feature/new-name not found in bare repo")
+	}
+
+	// === 5f. Listing shows 2 worktrees (main + renamed) ===
+	infos, err := worktree.List("rename-test")
+	if err != nil {
+		t.Fatalf("worktree.List() error: %v", err)
+	}
+	if len(infos) != 2 {
+		t.Fatalf("List() returned %d entries, want 2", len(infos))
+	}
+
+	// === 5g. Status works on the renamed worktree ===
+	status, err := worktree.Status("rename-test", "feature/new-name")
+	if err != nil {
+		t.Fatalf("Status() on renamed worktree error: %v", err)
+	}
+	if status.Branch != "feature/new-name" {
+		t.Errorf("Status.Branch = %q, want %q", status.Branch, "feature/new-name")
+	}
+}

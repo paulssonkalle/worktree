@@ -58,6 +58,9 @@ worktree open my-app feature-login
 # Clean up worktrees whose branches have been merged or deleted
 worktree prune --dry-run
 worktree prune
+
+# Rename a worktree (changes both branch name and directory)
+worktree rename my-app feature-login feature/TC-100/login
 ```
 
 ## Shell integration
@@ -107,8 +110,8 @@ paths automatically added so they're available via `z`:
 zoxide = true
 ```
 
-With this enabled, every `repo add` and `worktree add` automatically runs
-`zoxide add` for the new worktree path.
+With this enabled, every `repo add`, `worktree add`, and `worktree rename`
+automatically updates zoxide paths.
 
 To add all existing worktrees to zoxide in one go:
 
@@ -126,6 +129,7 @@ worktree zoxide sync my-app   # a specific repo
 | `repo list` | `repo ls` | List configured repositories |
 | `add <repo> <branch>` | | Create a worktree for a branch |
 | `remove <repo> <worktree>` | `rm` | Remove a worktree |
+| `rename <repo> <old> <new>` | | Rename a worktree's branch and directory |
 | `list [repo]` | `ls` | List worktrees |
 | `status [repo]` | | Show Git status of worktrees |
 | `switch [repo] [worktree]` | | Switch to a worktree (interactive with fzf) |
@@ -207,6 +211,14 @@ can later run `git push -u origin <branch>` to set the correct tracking ref.
 
 When `add` checks out an **existing remote branch**, upstream tracking is
 set automatically to the matching remote branch.
+
+### Renaming
+
+`rename` changes both the Git branch name and the worktree directory in one
+operation. Pinned status is preserved. If the branch had upstream tracking
+configured, note that the upstream ref still points to the old remote branch
+name after renaming. You may need to update it with
+`git push -u origin <new-branch>` after renaming.
 
 ## Configuration
 

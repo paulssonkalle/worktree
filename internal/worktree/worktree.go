@@ -150,6 +150,123 @@ func Remove(repoName, worktreeName string) error {
 	return nil
 }
 
+// Rename renames a worktree's branch and directory.
+// It renames the git branch, moves the worktree directory, and updates the config.
+func Rename(repoName, oldBranch, newBranch string) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+
+	repo, exists := cfg.Repositories[repoName]
+	if !exists {
+		return fmt.Errorf("repository %q not found", repoName)
+	}
+
+	oldSanitized := config.SanitizeBranchName(oldBranch)
+	newSanitized := config.SanitizeBranchName(newBranch)
+
+	// Verify old worktree exists in config
+	oldWtCfg, exists := repo.Worktrees[oldSanitized]
+	if !exists {
+		return fmt.Errorf("worktree %q not found in repo %q", oldBranch, repoName)
+	}
+
+	// Verify new name doesn't already exist
+	if _, exists := repo.Worktrees[newSanitized]; exists {
+		return fmt.Errorf("worktree %q already exists in repo %q", newBranch, repoName)
+	}
+
+	bareDir := repository.BareDir(repoName)
+	oldPath := WorktreeDir(repoName, oldBranch)
+	newPath := WorktreeDir(repoName, newBranch)
+
+	// Verify old path exists on disk
+	if _, err := os.Stat(oldPath); os.IsNotExist(err) {
+		return fmt.Errorf("worktree directory %q does not exist", oldPath)
+	}
+
+	// Verify new path doesn't exist on disk
+	if _, err := os.Stat(newPath); err == nil {
+		return fmt.Errorf("directory %q already exists", newPath)
+	}
+
+	// Verify new branch name doesn't already exist
+	if git.BranchExists(bareDir, newBranch) {
+		return fmt.Errorf("branch %q already exists", newBranch)
+	}
+
+	// Resolve the actual branch name for the worktree (the old branch may have
+	// slashes that got sanitized for the directory name but the git branch
+	// keeps the original name). We look it up from git to be precise.
+	gitWorktrees, err := git.ListWorktrees(bareDir)
+	if err != nil {
+		return fmt.Errorf("listing worktrees: %w", err)
+	}
+
+	// Resolve symlinks for path comparison (macOS /var -> /private/var)
+	resolvedOldPath, _ := resolvePathSafe(oldPath)
+
+	var actualOldBranch string
+	for _, gwt := range gitWorktrees {
+		resolvedGwtPath, _ := resolvePathSafe(gwt.Path)
+		if resolvedGwtPath == resolvedOldPath {
+			actualOldBranch = gwt.Branch
+			break
+		}
+	}
+	if actualOldBranch == "" {
+		return fmt.Errorf("could not find git branch for worktree at %q", oldPath)
+	}
+
+	// 1. Rename the git branch
+	fmt.Printf("Renaming branch %q to %q...\n", actualOldBranch, newBranch)
+	if err := git.RenameBranch(bareDir, actualOldBranch, newBranch); err != nil {
+		return fmt.Errorf("renaming branch: %w", err)
+	}
+
+	// 2. Move the worktree directory
+	fmt.Printf("Moving worktree from %q to %q...\n", oldPath, newPath)
+	if err := git.MoveWorktree(bareDir, oldPath, newPath); err != nil {
+		// Try to rollback the branch rename
+		_ = git.RenameBranch(bareDir, newBranch, actualOldBranch)
+		return fmt.Errorf("moving worktree: %w", err)
+	}
+
+	// 3. Update config: move entry preserving pinned state
+	delete(repo.Worktrees, oldSanitized)
+	if repo.Worktrees == nil {
+		repo.Worktrees = make(map[string]config.WorktreeConfig)
+	}
+	repo.Worktrees[newSanitized] = oldWtCfg
+	cfg.Repositories[repoName] = repo
+	if err := config.Save(cfg); err != nil {
+		return fmt.Errorf("saving config: %w", err)
+	}
+
+	// 4. Update zoxide if enabled
+	if cfg.Zoxide && zoxide.IsAvailable() {
+		if err := zoxide.Remove(oldPath); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not remove old path from zoxide: %v\n", err)
+		}
+		if err := zoxide.Add(newPath); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not add new path to zoxide: %v\n", err)
+		}
+	}
+
+	fmt.Printf("Worktree renamed from %q to %q\n", oldBranch, newBranch)
+	return nil
+}
+
+// resolvePathSafe resolves symlinks, returning the original path on error.
+func resolvePathSafe(path string) (string, error) {
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return path, err
+	}
+	return resolved, nil
+}
+
 // List returns worktree info for a repository.
 func List(repoName string) ([]Info, error) {
 	cfg, err := config.Load()
