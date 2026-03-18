@@ -3,6 +3,7 @@ package worktree
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -114,6 +115,125 @@ func TestAddNonexistentRepo(t *testing.T) {
 	err := Add("nonexistent", "some-branch", AddOptions{NoSymlinks: true})
 	if err == nil {
 		t.Error("Add() for nonexistent repository returned nil error, want error")
+	}
+}
+
+func TestAddWithBaseBranch(t *testing.T) {
+	basePath, repoName := setupTestEnv(t)
+	bareDir := repository.BareDir(repoName)
+	mainWT := filepath.Join(basePath, repoName, "main")
+
+	// Create a feature branch with an extra commit so it diverges from main.
+	if err := Add(repoName, "feature-base", AddOptions{NoSymlinks: true}); err != nil {
+		t.Fatalf("Add(feature-base) error: %v", err)
+	}
+	config.Reload()
+
+	featureDir := filepath.Join(basePath, repoName, "feature-base")
+	testutil.WriteFile(t, filepath.Join(featureDir, "extra.txt"), "diverged")
+	testutil.RunGit(t, featureDir, "add", ".")
+	testutil.RunGit(t, featureDir, "commit", "-m", "diverge from main")
+
+	// Get the commit hashes so we can verify later.
+	featureHead := strings.TrimSpace(testutil.RunGit(t, featureDir, "rev-parse", "HEAD"))
+	mainHead := strings.TrimSpace(testutil.RunGit(t, mainWT, "rev-parse", "HEAD"))
+
+	if featureHead == mainHead {
+		t.Fatal("feature-base should have diverged from main, but commits are the same")
+	}
+
+	// Create a new branch based on feature-base (local branch).
+	if err := Add(repoName, "child-of-feature", AddOptions{
+		BaseBranch: "feature-base",
+		NoSymlinks: true,
+	}); err != nil {
+		t.Fatalf("Add(child-of-feature) error: %v", err)
+	}
+	config.Reload()
+
+	childDir := filepath.Join(basePath, repoName, "child-of-feature")
+	childHead := strings.TrimSpace(testutil.RunGit(t, childDir, "rev-parse", "HEAD"))
+
+	// child-of-feature should be based on feature-base's tip, not main.
+	if childHead != featureHead {
+		t.Errorf("child-of-feature HEAD = %s, want %s (feature-base tip); got main tip instead = %s",
+			childHead, featureHead, mainHead)
+	}
+
+	// Verify the branch exists in the bare repo.
+	if !git.BranchExists(bareDir, "child-of-feature") {
+		t.Error("child-of-feature branch not found in bare repo")
+	}
+}
+
+func TestAddWithBaseBranchRemoteOnly(t *testing.T) {
+	// Set up manually to access srcDir for creating a remote-only branch.
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.toml")
+	basePath := filepath.Join(tmpDir, "worktrees")
+	config.SetConfigPath(configPath)
+
+	cfg := &config.Config{
+		BasePath:             basePath,
+		Editor:               "code",
+		CleanupThresholdDays: 30,
+		Repositories:         make(map[string]config.RepositoryConfig),
+	}
+	if err := config.Save(cfg); err != nil {
+		t.Fatalf("Save config: %v", err)
+	}
+	config.Reload()
+
+	srcDir := filepath.Join(tmpDir, "source-repo")
+	testutil.RunGit(t, "", "init", srcDir)
+	testutil.RunGit(t, srcDir, "checkout", "-b", "main")
+	testutil.WriteFile(t, filepath.Join(srcDir, "README.md"), "# Test")
+	testutil.RunGit(t, srcDir, "add", ".")
+	testutil.RunGit(t, srcDir, "commit", "-m", "initial commit")
+
+	// Create a feature branch in the source repo with an extra commit.
+	testutil.RunGit(t, srcDir, "checkout", "-b", "feature/remote-base")
+	testutil.WriteFile(t, filepath.Join(srcDir, "remote.txt"), "remote content")
+	testutil.RunGit(t, srcDir, "add", ".")
+	testutil.RunGit(t, srcDir, "commit", "-m", "remote feature commit")
+	remoteFeatureHead := strings.TrimSpace(testutil.RunGit(t, srcDir, "rev-parse", "HEAD"))
+	testutil.RunGit(t, srcDir, "checkout", "main")
+
+	repoName := "testproj"
+	if err := repository.Add(repoName, srcDir, "", "", true); err != nil {
+		t.Fatalf("repository.Add() error: %v", err)
+	}
+	config.Reload()
+
+	// feature/remote-base only exists on origin, not locally.
+	// Create a new branch based on it.
+	if err := Add(repoName, "child-of-remote", AddOptions{
+		BaseBranch: "feature/remote-base",
+		NoSymlinks: true,
+	}); err != nil {
+		t.Fatalf("Add(child-of-remote) error: %v", err)
+	}
+
+	childDir := filepath.Join(basePath, repoName, "child-of-remote")
+	childHead := strings.TrimSpace(testutil.RunGit(t, childDir, "rev-parse", "HEAD"))
+
+	if childHead != remoteFeatureHead {
+		t.Errorf("child-of-remote HEAD = %s, want %s (remote feature tip)", childHead, remoteFeatureHead)
+	}
+}
+
+func TestAddWithBaseBranchNotFound(t *testing.T) {
+	setupTestEnv(t)
+
+	err := Add("testproj", "new-branch", AddOptions{
+		BaseBranch: "nonexistent-base",
+		NoSymlinks: true,
+	})
+	if err == nil {
+		t.Fatal("Add() with nonexistent base branch returned nil error, want error")
+	}
+	if !strings.Contains(err.Error(), "not found locally or on remote") {
+		t.Errorf("error = %q, want it to contain %q", err.Error(), "not found locally or on remote")
 	}
 }
 

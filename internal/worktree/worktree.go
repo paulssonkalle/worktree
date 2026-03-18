@@ -78,10 +78,16 @@ func Add(repoName, branchName string, opts AddOptions) error {
 			return fmt.Errorf("creating worktree: %w", err)
 		}
 	} else {
-		// Determine the base ref - prefer remote tracking branch
-		baseRef := baseBranch
-		if git.RemoteBranchExists(bareDir, baseBranch) {
+		// Determine the base ref - prefer local branch (may have unpushed
+		// commits), then fall back to remote tracking branch.
+		var baseRef string
+		switch {
+		case git.BranchExists(bareDir, baseBranch):
+			baseRef = baseBranch
+		case git.RemoteBranchExists(bareDir, baseBranch):
 			baseRef = "origin/" + baseBranch
+		default:
+			return fmt.Errorf("base branch %q not found locally or on remote", baseBranch)
 		}
 		fmt.Printf("Creating branch %q from %s...\n", branchName, baseRef)
 		if err := git.AddWorktree(bareDir, wtPath, branchName, baseRef); err != nil {
