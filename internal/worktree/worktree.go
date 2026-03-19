@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/paulssonkalle/worktree/internal/config"
@@ -102,8 +103,10 @@ func Add(repoName, branchName string, opts AddOptions) error {
 		// git auto-sets upstream to the base tracking branch (e.g. origin/main)
 		// when creating from a remote ref. Unset it so the user can push with
 		// `git push -u origin <branch>` to create the correct remote tracking branch.
-		if err := git.UnsetUpstreamTracking(wtPath, branchName); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: could not unset upstream tracking: %v\n", err)
+		if strings.HasPrefix(baseRef, "origin/") {
+			if err := git.UnsetUpstreamTracking(wtPath, branchName); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: could not unset upstream tracking: %v\n", err)
+			}
 		}
 	}
 
