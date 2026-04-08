@@ -19,19 +19,27 @@ func setupIntegrationEnv(t *testing.T) (string, string) {
 	tmpDir := t.TempDir()
 
 	configPath := filepath.Join(tmpDir, "config.toml")
+	statePath := filepath.Join(tmpDir, "state.toml")
 	basePath := filepath.Join(tmpDir, "worktrees")
 	config.SetConfigPath(configPath)
+	config.SetStatePath(statePath)
 
 	cfg := &config.Config{
 		BasePath:             basePath,
 		Editor:               "code",
 		CleanupThresholdDays: 30,
-		Repositories:         make(map[string]config.RepositoryConfig),
 	}
 	if err := config.Save(cfg); err != nil {
 		t.Fatalf("Save config: %v", err)
 	}
+	st := &config.State{
+		Repositories: make(map[string]config.RepositoryConfig),
+	}
+	if err := config.SaveState(st); err != nil {
+		t.Fatalf("Save state: %v", err)
+	}
 	config.Reload()
+	config.ReloadState()
 
 	// Create a source git repo with multiple commits
 	srcDir := filepath.Join(tmpDir, "source-repo")
@@ -85,13 +93,13 @@ func TestFullWorkflow(t *testing.T) {
 		t.Error("src/main.go not found in main worktree")
 	}
 
-	// Verify config
-	config.Reload()
-	cfg, err := config.Load()
+	// Verify state
+	config.ReloadState()
+	st, err := config.LoadState()
 	if err != nil {
-		t.Fatalf("Load config: %v", err)
+		t.Fatalf("Load state: %v", err)
 	}
-	repo := cfg.Repositories["webapp"]
+	repo := st.Repositories["webapp"]
 	if repo.DefaultBranch != "main" {
 		t.Errorf("DefaultBranch = %q, want %q", repo.DefaultBranch, "main")
 	}
@@ -116,6 +124,7 @@ func TestFullWorkflow(t *testing.T) {
 
 	// === 3. List worktrees ===
 	config.Reload()
+	config.ReloadState()
 	infos, err := worktree.List("webapp")
 	if err != nil {
 		t.Fatalf("worktree.List() error: %v", err)
@@ -160,8 +169,9 @@ func TestFullWorkflow(t *testing.T) {
 		t.Fatalf("Pin() error: %v", err)
 	}
 	config.Reload()
-	cfg, _ = config.Load()
-	if !cfg.Repositories["webapp"].Worktrees["feature-auth"].Pinned {
+	config.ReloadState()
+	st, _ = config.LoadState()
+	if !st.Repositories["webapp"].Worktrees["feature-auth"].Pinned {
 		t.Error("feature-auth should be pinned after Pin()")
 	}
 
@@ -169,8 +179,9 @@ func TestFullWorkflow(t *testing.T) {
 		t.Fatalf("Unpin() error: %v", err)
 	}
 	config.Reload()
-	cfg, _ = config.Load()
-	if cfg.Repositories["webapp"].Worktrees["feature-auth"].Pinned {
+	config.ReloadState()
+	st, _ = config.LoadState()
+	if st.Repositories["webapp"].Worktrees["feature-auth"].Pinned {
 		t.Error("feature-auth should be unpinned after Unpin()")
 	}
 
@@ -183,6 +194,7 @@ func TestFullWorkflow(t *testing.T) {
 	}
 
 	config.Reload()
+	config.ReloadState()
 	infos, _ = worktree.List("webapp")
 	if len(infos) != 1 {
 		t.Errorf("List() after removal returned %d entries, want 1", len(infos))
@@ -190,6 +202,7 @@ func TestFullWorkflow(t *testing.T) {
 
 	// === 7. Remove repository ===
 	config.Reload()
+	config.ReloadState()
 	if err := repository.Remove("webapp", true); err != nil {
 		t.Fatalf("repository.Remove() error: %v", err)
 	}
@@ -198,9 +211,10 @@ func TestFullWorkflow(t *testing.T) {
 	}
 
 	config.Reload()
-	cfg, _ = config.Load()
-	if _, exists := cfg.Repositories["webapp"]; exists {
-		t.Error("repository still in config after repository.Remove()")
+	config.ReloadState()
+	st, _ = config.LoadState()
+	if _, exists := st.Repositories["webapp"]; exists {
+		t.Error("repository still in state after repository.Remove()")
 	}
 }
 
@@ -213,16 +227,19 @@ func TestMultipleReposIsolation(t *testing.T) {
 		t.Fatalf("repository.Add(repo-alpha) error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 	if err := repository.Add("repo-beta", srcDir, "", "", true); err != nil {
 		t.Fatalf("repository.Add(repo-beta) error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 
 	// Add worktree to alpha only
 	if err := worktree.Add("repo-alpha", "feature-x", worktree.AddOptions{NoSymlinks: true}); err != nil {
 		t.Fatalf("worktree.Add(repo-alpha) error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 
 	// Alpha should have 2 worktrees, beta should have 1
 	alphaInfos, _ := worktree.List("repo-alpha")
@@ -237,6 +254,7 @@ func TestMultipleReposIsolation(t *testing.T) {
 
 	// ListAll should show 3 total
 	config.Reload()
+	config.ReloadState()
 	all, _ := worktree.ListAll()
 	if len(all) != 3 {
 		t.Errorf("ListAll() returned %d entries, want 3", len(all))
@@ -244,10 +262,12 @@ func TestMultipleReposIsolation(t *testing.T) {
 
 	// Remove alpha should not affect beta
 	config.Reload()
+	config.ReloadState()
 	if err := repository.Remove("repo-alpha", true); err != nil {
 		t.Fatalf("repository.Remove(repo-alpha) error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 
 	betaInfos, _ = worktree.List("repo-beta")
 	if len(betaInfos) != 1 {
@@ -264,16 +284,19 @@ func TestCleanupIntegration(t *testing.T) {
 		t.Fatalf("repository.Add() error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 
 	// Add two feature worktrees (unpinned)
 	if err := worktree.Add("cleanup-test", "stale-feature", worktree.AddOptions{NoSymlinks: true}); err != nil {
 		t.Fatalf("worktree.Add(stale) error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 	if err := worktree.Add("cleanup-test", "fresh-feature", worktree.AddOptions{NoSymlinks: true}); err != nil {
 		t.Fatalf("worktree.Add(fresh) error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 
 	// Dry run with 0 days should find unpinned worktrees
 	results, err := worktree.Cleanup(0, true, "cleanup-test")
@@ -317,12 +340,14 @@ func TestRepoListSorted(t *testing.T) {
 	names := []string{"zulu", "alpha", "mike", "bravo"}
 	for _, name := range names {
 		config.Reload()
+		config.ReloadState()
 		if err := repository.Add(name, srcDir, "", "", true); err != nil {
 			t.Fatalf("repository.Add(%s) error: %v", name, err)
 		}
 	}
 
 	config.Reload()
+	config.ReloadState()
 	listed, err := repository.List()
 	if err != nil {
 		t.Fatalf("repository.List() error: %v", err)
@@ -345,6 +370,7 @@ func TestFetchIntegration(t *testing.T) {
 	_, srcDir := setupIntegrationEnv(t)
 
 	config.Reload()
+	config.ReloadState()
 	if err := repository.Add("fetch-test", srcDir, "", "", true); err != nil {
 		t.Fatalf("repository.Add() error: %v", err)
 	}
@@ -410,25 +436,29 @@ func TestRenameIntegration(t *testing.T) {
 		t.Fatalf("repository.Add() error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 
 	// === 2. Add feature worktree ===
 	if err := worktree.Add("rename-test", "feature/old-name", worktree.AddOptions{NoSymlinks: true}); err != nil {
 		t.Fatalf("worktree.Add() error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 
 	// === 3. Pin the worktree ===
 	if err := worktree.Pin("rename-test", "feature/old-name"); err != nil {
 		t.Fatalf("Pin() error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 
 	// Verify pinned before rename
-	cfg, err := config.Load()
+	config.ReloadState()
+	st, err := config.LoadState()
 	if err != nil {
-		t.Fatalf("Load config: %v", err)
+		t.Fatalf("Load state: %v", err)
 	}
-	if !cfg.Repositories["rename-test"].Worktrees["feature-old-name"].Pinned {
+	if !st.Repositories["rename-test"].Worktrees["feature-old-name"].Pinned {
 		t.Fatal("feature/old-name should be pinned before rename")
 	}
 
@@ -437,6 +467,7 @@ func TestRenameIntegration(t *testing.T) {
 		t.Fatalf("worktree.Rename() error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 
 	repoDir := filepath.Join(basePath, "rename-test")
 	oldDir := filepath.Join(repoDir, "feature-old-name")
@@ -461,11 +492,12 @@ func TestRenameIntegration(t *testing.T) {
 	}
 
 	// === 5d. Config entry moved from old sanitized name to new, still pinned ===
-	cfg, err = config.Load()
+	config.ReloadState()
+	st, err = config.LoadState()
 	if err != nil {
-		t.Fatalf("Load config after rename: %v", err)
+		t.Fatalf("Load state after rename: %v", err)
 	}
-	repo := cfg.Repositories["rename-test"]
+	repo := st.Repositories["rename-test"]
 	if _, exists := repo.Worktrees["feature-old-name"]; exists {
 		t.Error("old worktree config entry still exists after Rename()")
 	}

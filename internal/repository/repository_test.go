@@ -19,17 +19,26 @@ func setupTestEnv(t *testing.T) (string, string) {
 	configPath := filepath.Join(tmpDir, "config.toml")
 	basePath := filepath.Join(tmpDir, "worktrees")
 	config.SetConfigPath(configPath)
+	config.SetStatePath(filepath.Join(tmpDir, "state.toml"))
 
 	cfg := &config.Config{
 		BasePath:             basePath,
 		Editor:               "code",
 		CleanupThresholdDays: 30,
-		Repositories:         make(map[string]config.RepositoryConfig),
 	}
 	if err := config.Save(cfg); err != nil {
 		t.Fatalf("Save config: %v", err)
 	}
+
+	st := &config.State{
+		Repositories: make(map[string]config.RepositoryConfig),
+	}
+	if err := config.SaveState(st); err != nil {
+		t.Fatalf("Save state: %v", err)
+	}
+
 	config.Reload()
+	config.ReloadState()
 
 	// Create a source git repo to clone from
 	srcDir := filepath.Join(tmpDir, "source-repo")
@@ -69,11 +78,12 @@ func TestAdd(t *testing.T) {
 
 	// Verify config was updated
 	config.Reload()
-	cfg, err := config.Load()
+	config.ReloadState()
+	st, err := config.LoadState()
 	if err != nil {
-		t.Fatalf("Load config: %v", err)
+		t.Fatalf("Load state: %v", err)
 	}
-	repo, exists := cfg.Repositories["myrepo"]
+	repo, exists := st.Repositories["myrepo"]
 	if !exists {
 		t.Fatal("repository not found in config after Add()")
 	}
@@ -102,8 +112,9 @@ func TestAddWithExplicitDefaultBranch(t *testing.T) {
 	}
 
 	config.Reload()
-	cfg, _ := config.Load()
-	repo := cfg.Repositories["myrepo"]
+	config.ReloadState()
+	st, _ := config.LoadState()
+	repo := st.Repositories["myrepo"]
 	if repo.DefaultBranch != "main" {
 		t.Errorf("DefaultBranch = %q, want %q", repo.DefaultBranch, "main")
 	}
@@ -157,8 +168,9 @@ func TestRemove(t *testing.T) {
 
 	// Verify config was updated
 	config.Reload()
-	cfg, _ := config.Load()
-	if _, exists := cfg.Repositories["myrepo"]; exists {
+	config.ReloadState()
+	st, _ := config.LoadState()
+	if _, exists := st.Repositories["myrepo"]; exists {
 		t.Error("repository still in config after Remove()")
 	}
 }
@@ -189,11 +201,13 @@ func TestList(t *testing.T) {
 		t.Fatalf("Add(beta) error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 	if err := Add("alpha-repo", srcDir, "", "", false); err != nil {
 		t.Fatalf("Add(alpha) error: %v", err)
 	}
 
 	config.Reload()
+	config.ReloadState()
 	names, err = List()
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
@@ -219,6 +233,7 @@ func TestGet(t *testing.T) {
 	}
 
 	config.Reload()
+	config.ReloadState()
 	repo, err := Get("myrepo")
 	if err != nil {
 		t.Fatalf("Get() error: %v", err)
@@ -269,11 +284,12 @@ func TestAddWithCustomBasePath(t *testing.T) {
 
 	// Verify config stores the custom base path
 	config.Reload()
-	cfg, err := config.Load()
+	config.ReloadState()
+	st, err := config.LoadState()
 	if err != nil {
-		t.Fatalf("Load config: %v", err)
+		t.Fatalf("Load state: %v", err)
 	}
-	repo, exists := cfg.Repositories["custom-repo"]
+	repo, exists := st.Repositories["custom-repo"]
 	if !exists {
 		t.Fatal("repository not found in config after Add()")
 	}
@@ -286,6 +302,7 @@ func TestRepositoryDir(t *testing.T) {
 	basePath, _ := setupTestEnv(t)
 
 	config.Reload()
+	config.ReloadState()
 	dir := RepositoryDir("testrepo")
 	expected := filepath.Join(basePath, "testrepo")
 	if dir != expected {
@@ -300,20 +317,21 @@ func TestRepositoryDirWithPerRepoBasePath(t *testing.T) {
 
 	// Manually set up a repo config with a per-repo base path
 	config.Reload()
-	cfg, err := config.Load()
+	config.ReloadState()
+	st, err := config.LoadState()
 	if err != nil {
-		t.Fatalf("Load config: %v", err)
+		t.Fatalf("Load state: %v", err)
 	}
-	cfg.Repositories["custom-base-repo"] = config.RepositoryConfig{
+	st.Repositories["custom-base-repo"] = config.RepositoryConfig{
 		RepoURL:       "https://example.com/repo.git",
 		DefaultBranch: "main",
 		BasePath:      customBase,
 		Worktrees:     make(map[string]config.WorktreeConfig),
 	}
-	if err := config.Save(cfg); err != nil {
-		t.Fatalf("Save config: %v", err)
+	if err := config.SaveState(st); err != nil {
+		t.Fatalf("Save state: %v", err)
 	}
-	config.Reload()
+	config.ReloadState()
 
 	dir := RepositoryDir("custom-base-repo")
 	expected := filepath.Join(customBase, "custom-base-repo")
@@ -327,20 +345,21 @@ func TestRepositoryDirFallsBackToGlobalBasePath(t *testing.T) {
 
 	// Repo with empty BasePath should use global
 	config.Reload()
-	cfg, err := config.Load()
+	config.ReloadState()
+	st, err := config.LoadState()
 	if err != nil {
-		t.Fatalf("Load config: %v", err)
+		t.Fatalf("Load state: %v", err)
 	}
-	cfg.Repositories["no-base-repo"] = config.RepositoryConfig{
+	st.Repositories["no-base-repo"] = config.RepositoryConfig{
 		RepoURL:       "https://example.com/repo.git",
 		DefaultBranch: "main",
 		BasePath:      "",
 		Worktrees:     make(map[string]config.WorktreeConfig),
 	}
-	if err := config.Save(cfg); err != nil {
-		t.Fatalf("Save config: %v", err)
+	if err := config.SaveState(st); err != nil {
+		t.Fatalf("Save state: %v", err)
 	}
-	config.Reload()
+	config.ReloadState()
 
 	dir := RepositoryDir("no-base-repo")
 	expected := filepath.Join(basePath, "no-base-repo")
@@ -353,6 +372,7 @@ func TestBareDir(t *testing.T) {
 	basePath, _ := setupTestEnv(t)
 
 	config.Reload()
+	config.ReloadState()
 	dir := BareDir("testrepo")
 	expected := filepath.Join(basePath, "testrepo", ".bare")
 	if dir != expected {

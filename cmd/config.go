@@ -12,15 +12,20 @@ import (
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Manage configuration",
-	Long:  "View and manage the worktree CLI configuration file.",
+	Long:  "View and manage the worktree CLI configuration and state files.",
 }
 
 var configPathCmd = &cobra.Command{
 	Use:   "path",
-	Short: "Print the config file path",
+	Short: "Print the config and state file paths",
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println(config.DefaultConfigPath())
+		editState, _ := cmd.Flags().GetBool("state")
+		if editState {
+			fmt.Println(config.DefaultStatePath())
+		} else {
+			fmt.Println(config.DefaultConfigPath())
+		}
 	},
 }
 
@@ -58,14 +63,27 @@ If it already exists, print its current contents.`,
 var configEditCmd = &cobra.Command{
 	Use:   "edit",
 	Short: "Open the config file in your editor",
-	Args:  cobra.NoArgs,
+	Long: `Open the config or state file in your editor.
+Use --state to edit the state file (repositories and worktrees).`,
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		path := config.DefaultConfigPath()
+		editState, _ := cmd.Flags().GetBool("state")
 
-		// Ensure config file exists
-		_, err := config.Load()
-		if err != nil {
-			return err
+		var path string
+		if editState {
+			// Ensure state file exists
+			_, err := config.LoadState()
+			if err != nil {
+				return err
+			}
+			path = config.DefaultStatePath()
+		} else {
+			// Ensure config file exists
+			_, err := config.Load()
+			if err != nil {
+				return err
+			}
+			path = config.DefaultConfigPath()
 		}
 
 		editor := os.Getenv("EDITOR")
@@ -94,4 +112,7 @@ func init() {
 	configCmd.AddCommand(configPathCmd)
 	configCmd.AddCommand(configInitCmd)
 	configCmd.AddCommand(configEditCmd)
+
+	configEditCmd.Flags().Bool("state", false, "edit the state file (repositories and worktrees) instead of config")
+	configPathCmd.Flags().Bool("state", false, "print the state file path instead of config")
 }

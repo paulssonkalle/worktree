@@ -23,13 +23,13 @@ type RepositoryConfig struct {
 	Worktrees     map[string]WorktreeConfig `toml:"worktrees,omitempty"`
 }
 
-// Config is the top-level configuration.
+// Config is the top-level configuration (global settings only).
+// Repository and worktree state is stored separately in state.toml.
 type Config struct {
-	BasePath             string                      `toml:"base_path"`
-	Editor               string                      `toml:"editor"`
-	CleanupThresholdDays int                         `toml:"cleanup_threshold_days"`
-	Zoxide               bool                        `toml:"zoxide"`
-	Repositories         map[string]RepositoryConfig `toml:"repositories,omitempty"`
+	BasePath             string `toml:"base_path"`
+	Editor               string `toml:"editor"`
+	CleanupThresholdDays int    `toml:"cleanup_threshold_days"`
+	Zoxide               bool   `toml:"zoxide"`
 }
 
 var (
@@ -85,9 +85,6 @@ func Load() (*Config, error) {
 		if err := toml.Unmarshal(data, &c); err != nil {
 			cfgErr = fmt.Errorf("parsing config: %w", err)
 			return
-		}
-		if c.Repositories == nil {
-			c.Repositories = make(map[string]RepositoryConfig)
 		}
 		if c.BasePath == "" {
 			c.BasePath = defaultBasePath()
@@ -152,7 +149,6 @@ func defaultConfig() *Config {
 		BasePath:             defaultBasePath(),
 		Editor:               "code",
 		CleanupThresholdDays: 30,
-		Repositories:         make(map[string]RepositoryConfig),
 	}
 }
 

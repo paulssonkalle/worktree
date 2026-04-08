@@ -23,17 +23,24 @@ func setupTestEnv(t *testing.T) (string, string) {
 	configPath := filepath.Join(tmpDir, "config.toml")
 	basePath := filepath.Join(tmpDir, "worktrees")
 	config.SetConfigPath(configPath)
+	config.SetStatePath(filepath.Join(tmpDir, "state.toml"))
 
 	cfg := &config.Config{
 		BasePath:             basePath,
 		Editor:               "code",
 		CleanupThresholdDays: 30,
-		Repositories:         make(map[string]config.RepositoryConfig),
 	}
 	if err := config.Save(cfg); err != nil {
 		t.Fatalf("Save config: %v", err)
 	}
+	st := &config.State{
+		Repositories: make(map[string]config.RepositoryConfig),
+	}
+	if err := config.SaveState(st); err != nil {
+		t.Fatalf("Save state: %v", err)
+	}
 	config.Reload()
+	config.ReloadState()
 
 	// Create a source git repo
 	srcDir := filepath.Join(tmpDir, "source-repo")
@@ -48,6 +55,7 @@ func setupTestEnv(t *testing.T) (string, string) {
 		t.Fatalf("repository.Add() error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 
 	return basePath, "testproj"
 }
@@ -67,8 +75,9 @@ func TestAdd(t *testing.T) {
 
 	// Verify config was updated
 	config.Reload()
-	cfg, _ := config.Load()
-	repo := cfg.Repositories[repoName]
+	config.ReloadState()
+	st, _ := config.LoadState()
+	repo := st.Repositories[repoName]
 	if _, exists := repo.Worktrees["feature-x"]; !exists {
 		t.Error("worktree not found in config after Add()")
 	}
@@ -89,6 +98,7 @@ func TestAddExistingBranch(t *testing.T) {
 	}
 
 	config.Reload()
+	config.ReloadState()
 
 	// Re-add - the branch "reuse-branch" now exists locally
 	if err := Add(repoName, "reuse-branch", AddOptions{NoSymlinks: true}); err != nil {
@@ -128,6 +138,7 @@ func TestAddWithBaseBranch(t *testing.T) {
 		t.Fatalf("Add(feature-base) error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 
 	featureDir := filepath.Join(basePath, repoName, "feature-base")
 	testutil.WriteFile(t, filepath.Join(featureDir, "extra.txt"), "diverged")
@@ -150,6 +161,7 @@ func TestAddWithBaseBranch(t *testing.T) {
 		t.Fatalf("Add(child-of-feature) error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 
 	childDir := filepath.Join(basePath, repoName, "child-of-feature")
 	childHead := strings.TrimSpace(testutil.RunGit(t, childDir, "rev-parse", "HEAD"))
@@ -172,17 +184,24 @@ func TestAddWithBaseBranchRemoteOnly(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "config.toml")
 	basePath := filepath.Join(tmpDir, "worktrees")
 	config.SetConfigPath(configPath)
+	config.SetStatePath(filepath.Join(tmpDir, "state.toml"))
 
 	cfg := &config.Config{
 		BasePath:             basePath,
 		Editor:               "code",
 		CleanupThresholdDays: 30,
-		Repositories:         make(map[string]config.RepositoryConfig),
 	}
 	if err := config.Save(cfg); err != nil {
 		t.Fatalf("Save config: %v", err)
 	}
+	st := &config.State{
+		Repositories: make(map[string]config.RepositoryConfig),
+	}
+	if err := config.SaveState(st); err != nil {
+		t.Fatalf("Save state: %v", err)
+	}
 	config.Reload()
+	config.ReloadState()
 
 	srcDir := filepath.Join(tmpDir, "source-repo")
 	testutil.RunGit(t, "", "init", srcDir)
@@ -204,6 +223,7 @@ func TestAddWithBaseBranchRemoteOnly(t *testing.T) {
 		t.Fatalf("repository.Add() error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 
 	// feature/remote-base only exists on origin, not locally.
 	// Create a new branch based on it.
@@ -243,17 +263,24 @@ func TestAddRemoteOnlyBranch(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "config.toml")
 	basePath := filepath.Join(tmpDir, "worktrees")
 	config.SetConfigPath(configPath)
+	config.SetStatePath(filepath.Join(tmpDir, "state.toml"))
 
 	cfg := &config.Config{
 		BasePath:             basePath,
 		Editor:               "code",
 		CleanupThresholdDays: 30,
-		Repositories:         make(map[string]config.RepositoryConfig),
 	}
 	if err := config.Save(cfg); err != nil {
 		t.Fatalf("Save config: %v", err)
 	}
+	st := &config.State{
+		Repositories: make(map[string]config.RepositoryConfig),
+	}
+	if err := config.SaveState(st); err != nil {
+		t.Fatalf("Save state: %v", err)
+	}
 	config.Reload()
+	config.ReloadState()
 
 	srcDir := filepath.Join(tmpDir, "source-repo")
 	testutil.RunGit(t, "", "init", srcDir)
@@ -267,6 +294,7 @@ func TestAddRemoteOnlyBranch(t *testing.T) {
 		t.Fatalf("repository.Add() error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 
 	// Create a branch in the source repo (acts as remote) that does not
 	// exist locally in the bare clone.
@@ -295,8 +323,9 @@ func TestAddRemoteOnlyBranch(t *testing.T) {
 
 	// Verify config was updated with sanitized name
 	config.Reload()
-	cfg, _ = config.Load()
-	repo := cfg.Repositories[repoName]
+	config.ReloadState()
+	st, _ = config.LoadState()
+	repo := st.Repositories[repoName]
 	if _, exists := repo.Worktrees["feature-remote-only"]; !exists {
 		t.Error("worktree not found in config after Add() with remote-only branch")
 	}
@@ -321,8 +350,9 @@ func TestRemove(t *testing.T) {
 
 	// Verify config was updated
 	config.Reload()
-	cfg, _ := config.Load()
-	repo := cfg.Repositories[repoName]
+	config.ReloadState()
+	st, _ := config.LoadState()
+	repo := st.Repositories[repoName]
 	if _, exists := repo.Worktrees["to-remove"]; exists {
 		t.Error("worktree still in config after Remove()")
 	}
@@ -351,6 +381,7 @@ func TestRemoveKeepsBranchWhenDirty(t *testing.T) {
 		t.Fatalf("Add() error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 
 	// Make the worktree dirty with uncommitted changes
 	testutil.WriteFile(t, filepath.Join(basePath, repoName, "dirty-branch", "uncommitted.txt"), "dirty")
@@ -373,6 +404,7 @@ func TestRemoveKeepsBranchWithUnpushedCommits(t *testing.T) {
 		t.Fatalf("Add() error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 
 	// Create a commit that is not pushed (ahead of upstream)
 	wtDir := filepath.Join(basePath, repoName, "unpushed-branch")
@@ -398,6 +430,7 @@ func TestRemoveKeepsBranchFlag(t *testing.T) {
 		t.Fatalf("Add() error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 
 	if err := RemoveWithOptions(repoName, "keep-me", RemoveOptions{KeepBranch: true}); err != nil {
 		t.Fatalf("RemoveWithOptions() error: %v", err)
@@ -417,6 +450,7 @@ func TestRemoveForceBranchDeletesDirty(t *testing.T) {
 		t.Fatalf("Add() error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 
 	// Make the worktree dirty
 	testutil.WriteFile(t, filepath.Join(basePath, repoName, "force-delete", "uncommitted.txt"), "dirty")
@@ -440,6 +474,7 @@ func TestRemoveNeverDeletesDefaultBranch(t *testing.T) {
 		t.Fatalf("Unpin() error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 
 	if err := RemoveWithOptions(repoName, "main", RemoveOptions{ForceBranch: true}); err != nil {
 		t.Fatalf("RemoveWithOptions() error: %v", err)
@@ -475,6 +510,7 @@ func TestList(t *testing.T) {
 	}
 
 	config.Reload()
+	config.ReloadState()
 	infos, err = List(repoName)
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
@@ -507,17 +543,24 @@ func TestListAll(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "config.toml")
 	basePath := filepath.Join(tmpDir, "worktrees")
 	config.SetConfigPath(configPath)
+	config.SetStatePath(filepath.Join(tmpDir, "state.toml"))
 
 	cfg := &config.Config{
 		BasePath:             basePath,
 		Editor:               "code",
 		CleanupThresholdDays: 30,
-		Repositories:         make(map[string]config.RepositoryConfig),
 	}
 	if err := config.Save(cfg); err != nil {
 		t.Fatalf("Save config: %v", err)
 	}
+	st := &config.State{
+		Repositories: make(map[string]config.RepositoryConfig),
+	}
+	if err := config.SaveState(st); err != nil {
+		t.Fatalf("Save state: %v", err)
+	}
 	config.Reload()
+	config.ReloadState()
 
 	// Create source repo
 	srcDir := filepath.Join(tmpDir, "source-repo")
@@ -532,10 +575,12 @@ func TestListAll(t *testing.T) {
 		t.Fatalf("repository.Add(repo-a) error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 	if err := repository.Add("repo-b", srcDir, "", "", true); err != nil {
 		t.Fatalf("repository.Add(repo-b) error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 
 	infos, err := ListAll()
 	if err != nil {
@@ -557,10 +602,11 @@ func TestPin(t *testing.T) {
 	}
 
 	config.Reload()
+	config.ReloadState()
 
 	// Verify it starts unpinned
-	cfg, _ := config.Load()
-	wt := cfg.Repositories[repoName].Worktrees["feature-pin"]
+	st, _ := config.LoadState()
+	wt := st.Repositories[repoName].Worktrees["feature-pin"]
 	if wt.Pinned {
 		t.Error("new worktree should start unpinned")
 	}
@@ -571,8 +617,9 @@ func TestPin(t *testing.T) {
 	}
 
 	config.Reload()
-	cfg, _ = config.Load()
-	wt = cfg.Repositories[repoName].Worktrees["feature-pin"]
+	config.ReloadState()
+	st, _ = config.LoadState()
+	wt = st.Repositories[repoName].Worktrees["feature-pin"]
 	if !wt.Pinned {
 		t.Error("Pinned = false after Pin(), want true")
 	}
@@ -587,8 +634,9 @@ func TestUnpin(t *testing.T) {
 	}
 
 	config.Reload()
-	cfg, _ := config.Load()
-	wt := cfg.Repositories[repoName].Worktrees["main"]
+	config.ReloadState()
+	st, _ := config.LoadState()
+	wt := st.Repositories[repoName].Worktrees["main"]
 	if wt.Pinned {
 		t.Error("Pinned = true after Unpin(), want false")
 	}
@@ -677,6 +725,7 @@ func TestCleanup(t *testing.T) {
 		t.Fatalf("Add() error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 
 	// Cleanup with 0 days threshold should catch everything unpinned
 	results, err := Cleanup(0, true, repoName)
@@ -706,6 +755,7 @@ func TestCleanupDryRunDoesNotRemove(t *testing.T) {
 		t.Fatalf("Add() error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 
 	results, err := Cleanup(0, true, repoName)
 	if err != nil {
@@ -733,6 +783,7 @@ func TestCleanupActualRemoval(t *testing.T) {
 		t.Fatalf("Add() error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 
 	// Set the last modified time to old by touching a file in the past
 	wtDir := filepath.Join(basePath, repoName, "remove-me")
@@ -863,6 +914,7 @@ func TestRename(t *testing.T) {
 		t.Fatalf("Add() error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 
 	if err := Rename(repoName, "feature-x", "feature-y"); err != nil {
 		t.Fatalf("Rename() error: %v", err)
@@ -882,8 +934,9 @@ func TestRename(t *testing.T) {
 
 	// Verify config updated
 	config.Reload()
-	cfg, _ := config.Load()
-	repo := cfg.Repositories[repoName]
+	config.ReloadState()
+	st, _ := config.LoadState()
+	repo := st.Repositories[repoName]
 	if _, exists := repo.Worktrees["feature-x"]; exists {
 		t.Error("old worktree key still in config after Rename()")
 	}
@@ -908,19 +961,22 @@ func TestRenamePreservesPinnedState(t *testing.T) {
 		t.Fatalf("Add() error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 
 	if err := Pin(repoName, "feature-pinned"); err != nil {
 		t.Fatalf("Pin() error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 
 	if err := Rename(repoName, "feature-pinned", "feature-renamed"); err != nil {
 		t.Fatalf("Rename() error: %v", err)
 	}
 
 	config.Reload()
-	cfg, _ := config.Load()
-	wt, exists := cfg.Repositories[repoName].Worktrees["feature-renamed"]
+	config.ReloadState()
+	st, _ := config.LoadState()
+	wt, exists := st.Repositories[repoName].Worktrees["feature-renamed"]
 	if !exists {
 		t.Fatal("renamed worktree not found in config")
 	}
@@ -936,6 +992,7 @@ func TestRenameWithSlashes(t *testing.T) {
 		t.Fatalf("Add() error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 
 	if err := Rename(repoName, "feature/old-name", "feature/new-name"); err != nil {
 		t.Fatalf("Rename() error: %v", err)
@@ -949,8 +1006,9 @@ func TestRenameWithSlashes(t *testing.T) {
 
 	// Verify config key is sanitized
 	config.Reload()
-	cfg, _ := config.Load()
-	repo := cfg.Repositories[repoName]
+	config.ReloadState()
+	st, _ := config.LoadState()
+	repo := st.Repositories[repoName]
 	if _, exists := repo.Worktrees["feature-new-name"]; !exists {
 		t.Error("new worktree key (sanitized) not found in config after Rename()")
 	}
@@ -984,6 +1042,7 @@ func TestRenameTargetExists(t *testing.T) {
 		t.Fatalf("Add(feature-b) error: %v", err)
 	}
 	config.Reload()
+	config.ReloadState()
 
 	err := Rename(repoName, "feature-a", "feature-b")
 	if err == nil {

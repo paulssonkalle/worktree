@@ -13,6 +13,9 @@ func setupTestConfig(t *testing.T) string {
 	tmpDir := t.TempDir()
 	path := filepath.Join(tmpDir, "config.toml")
 	SetConfigPath(path)
+	// Also set state path in the same temp dir
+	statePath := filepath.Join(tmpDir, "state.toml")
+	SetStatePath(statePath)
 	return path
 }
 
@@ -32,9 +35,6 @@ func TestLoadCreatesDefaultConfig(t *testing.T) {
 	}
 	if cfg.CleanupThresholdDays != 30 {
 		t.Errorf("CleanupThresholdDays = %d, want %d", cfg.CleanupThresholdDays, 30)
-	}
-	if cfg.Repositories == nil {
-		t.Error("Repositories is nil, want initialized map")
 	}
 
 	// Config file should have been created on disk
@@ -88,13 +88,6 @@ func TestLoadExistingConfig(t *testing.T) {
 	content := `base_path = "~/my-worktrees"
 editor = "nvim"
 cleanup_threshold_days = 7
-
-[repositories.myapp]
-repo_url = "git@github.com:user/myapp.git"
-default_branch = "main"
-
-[repositories.myapp.worktrees.feature-x]
-pinned = true
 `
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
@@ -117,25 +110,6 @@ pinned = true
 	}
 	if cfg.CleanupThresholdDays != 7 {
 		t.Errorf("CleanupThresholdDays = %d, want %d", cfg.CleanupThresholdDays, 7)
-	}
-
-	repo, exists := cfg.Repositories["myapp"]
-	if !exists {
-		t.Fatal("repository 'myapp' not found in config")
-	}
-	if repo.RepoURL != "git@github.com:user/myapp.git" {
-		t.Errorf("RepoURL = %q, want %q", repo.RepoURL, "git@github.com:user/myapp.git")
-	}
-	if repo.DefaultBranch != "main" {
-		t.Errorf("DefaultBranch = %q, want %q", repo.DefaultBranch, "main")
-	}
-
-	wtCfg, exists := repo.Worktrees["feature-x"]
-	if !exists {
-		t.Fatal("worktree 'feature-x' not found in repository config")
-	}
-	if !wtCfg.Pinned {
-		t.Error("worktree 'feature-x' Pinned = false, want true")
 	}
 }
 
@@ -161,9 +135,6 @@ func TestLoadDefaultsForMissingFields(t *testing.T) {
 	if cfg.CleanupThresholdDays != 30 {
 		t.Errorf("CleanupThresholdDays = %d, want default %d", cfg.CleanupThresholdDays, 30)
 	}
-	if cfg.Repositories == nil {
-		t.Error("Repositories is nil, want initialized map")
-	}
 }
 
 func TestSaveAndLoad(t *testing.T) {
@@ -173,16 +144,6 @@ func TestSaveAndLoad(t *testing.T) {
 		BasePath:             "~/test-trees",
 		Editor:               "emacs",
 		CleanupThresholdDays: 15,
-		Repositories: map[string]RepositoryConfig{
-			"testproj": {
-				RepoURL:       "https://github.com/test/repo.git",
-				DefaultBranch: "develop",
-				Worktrees: map[string]WorktreeConfig{
-					"feat-1": {Pinned: true},
-					"feat-2": {Pinned: false},
-				},
-			},
-		},
 	}
 
 	if err := Save(original); err != nil {
@@ -205,45 +166,18 @@ func TestSaveAndLoad(t *testing.T) {
 	if loaded.CleanupThresholdDays != original.CleanupThresholdDays {
 		t.Errorf("CleanupThresholdDays = %d, want %d", loaded.CleanupThresholdDays, original.CleanupThresholdDays)
 	}
-
-	repo, exists := loaded.Repositories["testproj"]
-	if !exists {
-		t.Fatal("repository 'testproj' not found after load")
-	}
-	if repo.RepoURL != "https://github.com/test/repo.git" {
-		t.Errorf("RepoURL = %q, want %q", repo.RepoURL, "https://github.com/test/repo.git")
-	}
-	if repo.DefaultBranch != "develop" {
-		t.Errorf("DefaultBranch = %q, want %q", repo.DefaultBranch, "develop")
-	}
-
-	wt, exists := repo.Worktrees["feat-1"]
-	if !exists {
-		t.Fatal("worktree 'feat-1' not found")
-	}
-	if !wt.Pinned {
-		t.Error("feat-1 Pinned = false, want true")
-	}
-
-	wt2, exists := repo.Worktrees["feat-2"]
-	if !exists {
-		t.Fatal("worktree 'feat-2' not found")
-	}
-	if wt2.Pinned {
-		t.Error("feat-2 Pinned = true, want false")
-	}
 }
 
 func TestSaveCreatesParentDirs(t *testing.T) {
 	tmpDir := t.TempDir()
 	path := filepath.Join(tmpDir, "deep", "nested", "config.toml")
 	SetConfigPath(path)
+	SetStatePath(filepath.Join(tmpDir, "state.toml"))
 
 	cfg := &Config{
 		BasePath:             "~/trees",
 		Editor:               "vi",
 		CleanupThresholdDays: 10,
-		Repositories:         make(map[string]RepositoryConfig),
 	}
 
 	if err := Save(cfg); err != nil {
@@ -289,8 +223,6 @@ func TestReloadResetsSingleton(t *testing.T) {
 	}
 
 	// After reload, we should get a fresh instance
-	// (they may or may not be the same pointer depending on content,
-	// but the singleton should have been reset)
 	_ = cfg1
 	_ = cfg2
 }
@@ -299,6 +231,7 @@ func TestSetConfigPathResetsSingleton(t *testing.T) {
 	tmpDir := t.TempDir()
 	path1 := filepath.Join(tmpDir, "config1.toml")
 	path2 := filepath.Join(tmpDir, "config2.toml")
+	SetStatePath(filepath.Join(tmpDir, "state.toml"))
 
 	// Create two different configs
 	cfg1Content := `base_path = "~/path1"
@@ -376,86 +309,6 @@ func TestLoadInvalidTOML(t *testing.T) {
 	_, err := Load()
 	if err == nil {
 		t.Error("Load() returned nil error for invalid TOML, want error")
-	}
-}
-
-func TestSaveAndLoadWithPerRepoBasePath(t *testing.T) {
-	setupTestConfig(t)
-
-	original := &Config{
-		BasePath:             "~/test-trees",
-		Editor:               "code",
-		CleanupThresholdDays: 30,
-		Repositories: map[string]RepositoryConfig{
-			"repo-with-base": {
-				RepoURL:       "https://github.com/test/repo.git",
-				DefaultBranch: "main",
-				BasePath:      "/custom/path/to/worktrees",
-				Worktrees: map[string]WorktreeConfig{
-					"main": {Pinned: true},
-				},
-			},
-			"repo-without-base": {
-				RepoURL:       "https://github.com/test/other.git",
-				DefaultBranch: "develop",
-				Worktrees: map[string]WorktreeConfig{
-					"develop": {Pinned: true},
-				},
-			},
-		},
-	}
-
-	if err := Save(original); err != nil {
-		t.Fatalf("Save() error: %v", err)
-	}
-
-	Reload()
-	loaded, err := Load()
-	if err != nil {
-		t.Fatalf("Load() error: %v", err)
-	}
-
-	// Repo with custom base path should preserve it
-	repoWith := loaded.Repositories["repo-with-base"]
-	if repoWith.BasePath != "/custom/path/to/worktrees" {
-		t.Errorf("repo-with-base BasePath = %q, want %q", repoWith.BasePath, "/custom/path/to/worktrees")
-	}
-
-	// Repo without custom base path should have empty string
-	repoWithout := loaded.Repositories["repo-without-base"]
-	if repoWithout.BasePath != "" {
-		t.Errorf("repo-without-base BasePath = %q, want empty string", repoWithout.BasePath)
-	}
-}
-
-func TestLoadExistingConfigWithPerRepoBasePath(t *testing.T) {
-	path := setupTestConfig(t)
-
-	content := `base_path = "~/worktrees"
-editor = "code"
-cleanup_threshold_days = 30
-
-[repositories.myapp]
-repo_url = "git@github.com:user/myapp.git"
-default_branch = "main"
-base_path = "/opt/worktrees"
-
-[repositories.myapp.worktrees.main]
-pinned = true
-`
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	Reload()
-	cfg, err := Load()
-	if err != nil {
-		t.Fatalf("Load() error: %v", err)
-	}
-
-	repo := cfg.Repositories["myapp"]
-	if repo.BasePath != "/opt/worktrees" {
-		t.Errorf("BasePath = %q, want %q", repo.BasePath, "/opt/worktrees")
 	}
 }
 

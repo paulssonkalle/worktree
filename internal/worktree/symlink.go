@@ -55,12 +55,12 @@ func SetupSymlinks(repoDir, worktreePath string) error {
 
 // SetupSymlinksAll sets up symlinks for all worktrees in a repository.
 func SetupSymlinksAll(repoName string) error {
-	cfg, err := config.Load()
+	st, err := config.LoadState()
 	if err != nil {
 		return err
 	}
 
-	if _, exists := cfg.Repositories[repoName]; !exists {
+	if _, exists := st.Repositories[repoName]; !exists {
 		return fmt.Errorf("repository %q not found", repoName)
 	}
 

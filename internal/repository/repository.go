@@ -21,6 +21,10 @@ func Add(name, repoURL, defaultBranch, basePath string, noSymlinks bool) error {
 	if err != nil {
 		return err
 	}
+	st, err := config.LoadState()
+	if err != nil {
+		return err
+	}
 
 	if config.IsFirstRun() {
 		path := config.DefaultConfigPath()
@@ -30,12 +34,12 @@ func Add(name, repoURL, defaultBranch, basePath string, noSymlinks bool) error {
 		fmt.Printf("  worktree config edit\n\n")
 	}
 
-	if _, exists := cfg.Repositories[name]; exists {
+	if _, exists := st.Repositories[name]; exists {
 		return fmt.Errorf("repository %q already exists", name)
 	}
 
 	// Store initial config so RepositoryDir() can resolve the per-repo base path.
-	cfg.Repositories[name] = config.RepositoryConfig{
+	st.Repositories[name] = config.RepositoryConfig{
 		RepoURL:   repoURL,
 		BasePath:  basePath,
 		Worktrees: make(map[string]config.WorktreeConfig),
@@ -45,7 +49,7 @@ func Add(name, repoURL, defaultBranch, basePath string, noSymlinks bool) error {
 	bareDir := BareDir(name)
 
 	if err := os.MkdirAll(repoDir, 0o755); err != nil {
-		delete(cfg.Repositories, name)
+		delete(st.Repositories, name)
 		return fmt.Errorf("creating repository directory: %w", err)
 	}
 
@@ -53,7 +57,7 @@ func Add(name, repoURL, defaultBranch, basePath string, noSymlinks bool) error {
 	if err := git.CloneBare(repoURL, bareDir); err != nil {
 		// Clean up on failure
 		os.RemoveAll(repoDir)
-		delete(cfg.Repositories, name)
+		delete(st.Repositories, name)
 		return fmt.Errorf("cloning repository: %w", err)
 	}
 
@@ -74,7 +78,7 @@ func Add(name, repoURL, defaultBranch, basePath string, noSymlinks bool) error {
 	if err := git.AddWorktreeExisting(bareDir, wtPath, defaultBranch); err != nil {
 		return fmt.Errorf("creating default branch worktree: %w", err)
 	}
-	cfg.Repositories[name] = config.RepositoryConfig{
+	st.Repositories[name] = config.RepositoryConfig{
 		RepoURL:       repoURL,
 		DefaultBranch: defaultBranch,
 		BasePath:      basePath,
@@ -83,8 +87,8 @@ func Add(name, repoURL, defaultBranch, basePath string, noSymlinks bool) error {
 		},
 	}
 
-	if err := config.Save(cfg); err != nil {
-		return fmt.Errorf("saving config: %w", err)
+	if err := config.SaveState(st); err != nil {
+		return fmt.Errorf("saving state: %w", err)
 	}
 
 	if cfg.Zoxide && zoxide.IsAvailable() {
@@ -107,12 +111,12 @@ func Add(name, repoURL, defaultBranch, basePath string, noSymlinks bool) error {
 
 // Remove deletes a repository and all its worktrees.
 func Remove(name string, force bool) error {
-	cfg, err := config.Load()
+	st, err := config.LoadState()
 	if err != nil {
 		return err
 	}
 
-	if _, exists := cfg.Repositories[name]; !exists {
+	if _, exists := st.Repositories[name]; !exists {
 		return fmt.Errorf("repository %q not found", name)
 	}
 
@@ -126,9 +130,9 @@ func Remove(name string, force bool) error {
 		return fmt.Errorf("removing repository directory: %w", err)
 	}
 
-	delete(cfg.Repositories, name)
-	if err := config.Save(cfg); err != nil {
-		return fmt.Errorf("saving config: %w", err)
+	delete(st.Repositories, name)
+	if err := config.SaveState(st); err != nil {
+		return fmt.Errorf("saving state: %w", err)
 	}
 
 	fmt.Printf("Repository %q removed\n", name)
@@ -137,13 +141,13 @@ func Remove(name string, force bool) error {
 
 // List returns sorted repository names.
 func List() ([]string, error) {
-	cfg, err := config.Load()
+	st, err := config.LoadState()
 	if err != nil {
 		return nil, err
 	}
 
-	names := make([]string, 0, len(cfg.Repositories))
-	for name := range cfg.Repositories {
+	names := make([]string, 0, len(st.Repositories))
+	for name := range st.Repositories {
 		names = append(names, name)
 	}
 	sort.Strings(names)
@@ -152,11 +156,11 @@ func List() ([]string, error) {
 
 // Get returns the config for a repository.
 func Get(name string) (*config.RepositoryConfig, error) {
-	cfg, err := config.Load()
+	st, err := config.LoadState()
 	if err != nil {
 		return nil, err
 	}
-	r, exists := cfg.Repositories[name]
+	r, exists := st.Repositories[name]
 	if !exists {
 		return nil, fmt.Errorf("repository %q not found", name)
 	}
@@ -168,11 +172,14 @@ func Get(name string) (*config.RepositoryConfig, error) {
 // over the global BasePath.
 func RepositoryDir(name string) string {
 	cfg, _ := config.Load()
+	st, _ := config.LoadState()
 	if cfg == nil {
 		return filepath.Join("worktrees", name)
 	}
-	if repo, exists := cfg.Repositories[name]; exists && repo.BasePath != "" {
-		return filepath.Join(config.ExpandPath(repo.BasePath), name)
+	if st != nil {
+		if repo, exists := st.Repositories[name]; exists && repo.BasePath != "" {
+			return filepath.Join(config.ExpandPath(repo.BasePath), name)
+		}
 	}
 	base := config.ExpandPath(cfg.BasePath)
 	return filepath.Join(base, name)

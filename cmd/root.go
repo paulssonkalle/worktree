@@ -44,12 +44,12 @@ func init() {
 
 // repoNames returns repository names for shell completion.
 func repoNames(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	cfg, err := config.Load()
+	st, err := config.LoadState()
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
-	names := make([]string, 0, len(cfg.Repositories))
-	for name := range cfg.Repositories {
+	names := make([]string, 0, len(st.Repositories))
+	for name := range st.Repositories {
 		names = append(names, name)
 	}
 	return names, cobra.ShellCompDirectiveNoFileComp
@@ -60,11 +60,11 @@ func worktreeNames(cmd *cobra.Command, args []string, toComplete string) ([]stri
 	if len(args) == 0 {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
-	cfg, err := config.Load()
+	st, err := config.LoadState()
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
-	repo, exists := cfg.Repositories[args[0]]
+	repo, exists := st.Repositories[args[0]]
 	if !exists {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
@@ -82,11 +82,11 @@ func branchNames(cmd *cobra.Command, args []string, toComplete string) ([]string
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 	repoName := args[0]
-	cfg, err := config.Load()
+	st, err := config.LoadState()
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
-	repo, exists := cfg.Repositories[repoName]
+	repo, exists := st.Repositories[repoName]
 	if !exists {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
@@ -119,11 +119,11 @@ func allBranchNames(cmd *cobra.Command, args []string, toComplete string) ([]str
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 	repoName := args[0]
-	cfg, err := config.Load()
+	st, err := config.LoadState()
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
-	if _, exists := cfg.Repositories[repoName]; !exists {
+	if _, exists := st.Repositories[repoName]; !exists {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 

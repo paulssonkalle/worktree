@@ -46,8 +46,12 @@ func Add(repoName, branchName string, opts AddOptions) error {
 	if err != nil {
 		return err
 	}
+	st, err := config.LoadState()
+	if err != nil {
+		return err
+	}
 
-	repo, exists := cfg.Repositories[repoName]
+	repo, exists := st.Repositories[repoName]
 	if !exists {
 		return fmt.Errorf("repository %q not found", repoName)
 	}
@@ -117,14 +121,14 @@ func Add(repoName, branchName string, opts AddOptions) error {
 		}
 	}
 
-	// Update config
+	// Update state
 	if repo.Worktrees == nil {
 		repo.Worktrees = make(map[string]config.WorktreeConfig)
 	}
 	repo.Worktrees[config.SanitizeBranchName(branchName)] = config.WorktreeConfig{Pinned: false}
-	cfg.Repositories[repoName] = repo
-	if err := config.Save(cfg); err != nil {
-		return fmt.Errorf("saving config: %w", err)
+	st.Repositories[repoName] = repo
+	if err := config.SaveState(st); err != nil {
+		return fmt.Errorf("saving state: %w", err)
 	}
 
 	fmt.Printf("Worktree %q created at %s\n", branchName, wtPath)
@@ -157,12 +161,12 @@ func Remove(repoName, worktreeName string) error {
 // unpushed commits or uncommitted changes, deletion is skipped unless ForceBranch
 // is set. The default branch is never deleted.
 func RemoveWithOptions(repoName, worktreeName string, opts RemoveOptions) error {
-	cfg, err := config.Load()
+	st, err := config.LoadState()
 	if err != nil {
 		return err
 	}
 
-	repo, exists := cfg.Repositories[repoName]
+	repo, exists := st.Repositories[repoName]
 	if !exists {
 		return fmt.Errorf("repository %q not found", repoName)
 	}
@@ -229,9 +233,9 @@ func RemoveWithOptions(repoName, worktreeName string, opts RemoveOptions) error 
 	}
 
 	delete(repo.Worktrees, config.SanitizeBranchName(worktreeName))
-	cfg.Repositories[repoName] = repo
-	if err := config.Save(cfg); err != nil {
-		return fmt.Errorf("saving config: %w", err)
+	st.Repositories[repoName] = repo
+	if err := config.SaveState(st); err != nil {
+		return fmt.Errorf("saving state: %w", err)
 	}
 
 	if deleteBranch {
@@ -254,8 +258,12 @@ func Rename(repoName, oldBranch, newBranch string) error {
 	if err != nil {
 		return err
 	}
+	st, err := config.LoadState()
+	if err != nil {
+		return err
+	}
 
-	repo, exists := cfg.Repositories[repoName]
+	repo, exists := st.Repositories[repoName]
 	if !exists {
 		return fmt.Errorf("repository %q not found", repoName)
 	}
@@ -330,15 +338,15 @@ func Rename(repoName, oldBranch, newBranch string) error {
 		return fmt.Errorf("moving worktree: %w", err)
 	}
 
-	// 3. Update config: move entry preserving pinned state
+	// 3. Update state: move entry preserving pinned state
 	delete(repo.Worktrees, oldSanitized)
 	if repo.Worktrees == nil {
 		repo.Worktrees = make(map[string]config.WorktreeConfig)
 	}
 	repo.Worktrees[newSanitized] = oldWtCfg
-	cfg.Repositories[repoName] = repo
-	if err := config.Save(cfg); err != nil {
-		return fmt.Errorf("saving config: %w", err)
+	st.Repositories[repoName] = repo
+	if err := config.SaveState(st); err != nil {
+		return fmt.Errorf("saving state: %w", err)
 	}
 
 	// 4. Update zoxide if enabled
@@ -366,12 +374,12 @@ func resolvePathSafe(path string) (string, error) {
 
 // List returns worktree info for a repository.
 func List(repoName string) ([]Info, error) {
-	cfg, err := config.Load()
+	st, err := config.LoadState()
 	if err != nil {
 		return nil, err
 	}
 
-	repo, exists := cfg.Repositories[repoName]
+	repo, exists := st.Repositories[repoName]
 	if !exists {
 		return nil, fmt.Errorf("repository %q not found", repoName)
 	}
@@ -440,12 +448,12 @@ func Unpin(repoName, worktreeName string) error {
 }
 
 func setPinned(repoName, worktreeName string, pinned bool) error {
-	cfg, err := config.Load()
+	st, err := config.LoadState()
 	if err != nil {
 		return err
 	}
 
-	repo, exists := cfg.Repositories[repoName]
+	repo, exists := st.Repositories[repoName]
 	if !exists {
 		return fmt.Errorf("repository %q not found", repoName)
 	}
@@ -466,10 +474,10 @@ func setPinned(repoName, worktreeName string, pinned bool) error {
 
 	wtCfg.Pinned = pinned
 	repo.Worktrees[config.SanitizeBranchName(worktreeName)] = wtCfg
-	cfg.Repositories[repoName] = repo
+	st.Repositories[repoName] = repo
 
-	if err := config.Save(cfg); err != nil {
-		return fmt.Errorf("saving config: %w", err)
+	if err := config.SaveState(st); err != nil {
+		return fmt.Errorf("saving state: %w", err)
 	}
 
 	action := "pinned"
@@ -492,7 +500,7 @@ type CleanupResult struct {
 // Cleanup removes worktrees that haven't been modified in the given number of days.
 // Pinned worktrees are skipped. Returns a list of results.
 func Cleanup(days int, dryRun bool, repoFilter string) ([]CleanupResult, error) {
-	cfg, err := config.Load()
+	st, err := config.LoadState()
 	if err != nil {
 		return nil, err
 	}
@@ -502,19 +510,19 @@ func Cleanup(days int, dryRun bool, repoFilter string) ([]CleanupResult, error) 
 
 	repos := make([]string, 0)
 	if repoFilter != "" {
-		if _, exists := cfg.Repositories[repoFilter]; !exists {
+		if _, exists := st.Repositories[repoFilter]; !exists {
 			return nil, fmt.Errorf("repository %q not found", repoFilter)
 		}
 		repos = append(repos, repoFilter)
 	} else {
-		for name := range cfg.Repositories {
+		for name := range st.Repositories {
 			repos = append(repos, name)
 		}
 		sort.Strings(repos)
 	}
 
 	for _, repoName := range repos {
-		repo := cfg.Repositories[repoName]
+		repo := st.Repositories[repoName]
 		bareDir := repository.BareDir(repoName)
 
 		gitWorktrees, err := git.ListWorktrees(bareDir)
@@ -576,7 +584,7 @@ type PruneResult struct {
 // Prune removes worktrees whose branches have been merged or deleted on the remote.
 // Pinned worktrees are skipped.
 func Prune(repoFilter string, dryRun bool) ([]PruneResult, error) {
-	cfg, err := config.Load()
+	st, err := config.LoadState()
 	if err != nil {
 		return nil, err
 	}
@@ -585,19 +593,19 @@ func Prune(repoFilter string, dryRun bool) ([]PruneResult, error) {
 
 	repos := make([]string, 0)
 	if repoFilter != "" {
-		if _, exists := cfg.Repositories[repoFilter]; !exists {
+		if _, exists := st.Repositories[repoFilter]; !exists {
 			return nil, fmt.Errorf("repository %q not found", repoFilter)
 		}
 		repos = append(repos, repoFilter)
 	} else {
-		for name := range cfg.Repositories {
+		for name := range st.Repositories {
 			repos = append(repos, name)
 		}
 		sort.Strings(repos)
 	}
 
 	for _, repoName := range repos {
-		repo := cfg.Repositories[repoName]
+		repo := st.Repositories[repoName]
 		bareDir := repository.BareDir(repoName)
 
 		// Fetch latest
@@ -669,12 +677,12 @@ func Prune(repoFilter string, dryRun bool) ([]PruneResult, error) {
 
 // Status returns detailed status info for a specific worktree.
 func Status(repoName, worktreeName string) (*Info, error) {
-	cfg, err := config.Load()
+	st, err := config.LoadState()
 	if err != nil {
 		return nil, err
 	}
 
-	repo, exists := cfg.Repositories[repoName]
+	repo, exists := st.Repositories[repoName]
 	if !exists {
 		return nil, fmt.Errorf("repository %q not found", repoName)
 	}
