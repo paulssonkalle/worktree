@@ -59,6 +59,14 @@ var repoListCmd = &cobra.Command{
 			return nil
 		}
 
+		namesOnly, _ := cmd.Flags().GetBool("names-only")
+		if namesOnly {
+			for _, name := range names {
+				fmt.Println(name)
+			}
+			return nil
+		}
+
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		fmt.Fprintln(w, "REPO\tURL\tBRANCH\tPATH")
 		for _, name := range names {
@@ -83,4 +91,5 @@ func init() {
 	repoAddCmd.Flags().String("base-path", "", "override the global base path for this repository")
 	repoAddCmd.Flags().Bool("no-symlinks", false, "skip creating shared IDE settings symlinks")
 	repoRemoveCmd.Flags().Bool("force", false, "force removal of repository and all worktrees")
+	repoListCmd.Flags().Bool("names-only", false, "print only repository names, one per line")
 }

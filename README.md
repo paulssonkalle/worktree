@@ -61,6 +61,28 @@ worktree prune
 
 # Rename a worktree (changes both branch name and directory)
 worktree rename my-app feature-login feature/TC-100/login
+
+# Launch the interactive TUI to create a new worktree
+worktree interactive-add
+```
+
+### Interactive worktree creation
+
+`worktree interactive-add` (alias `ia`) launches a TUI that guides you through
+creating a new worktree — select a repo, pick or create a branch, and choose a
+base branch. If [sesh](https://github.com/joshmedeski/sesh) is installed, it
+automatically connects to the new worktree's tmux session.
+
+To bind it to a tmux popup:
+
+```tmux
+bind-key "A" display-popup -E -w 60% -h 50% "worktree interactive-add"
+```
+
+To trigger it from a Ghostty keyboard shortcut (assuming `ctrl+a` is your tmux prefix):
+
+```
+keybind = cmd+l=text:\x01\x41
 ```
 
 ## Shell integration
@@ -128,6 +150,8 @@ worktree zoxide sync my-app   # a specific repo
 | `repo remove <name>` | `repo rm` | Remove a repository and all its worktrees |
 | `repo list` | `repo ls` | List configured repositories |
 | `add <repo> <branch>` | | Create a worktree for a branch |
+| `interactive-add` | `ia` | Interactively create a new worktree (TUI) |
+| `branches <repo>` | | List branches available in a repository |
 | `remove <repo> <worktree>` | `rm` | Remove a worktree (deletes local branch if clean) |
 | `rename <repo> <old> <new>` | | Rename a worktree's branch and directory |
 | `list [repo]` | `ls` | List worktrees |
@@ -172,6 +196,20 @@ worktree zoxide sync my-app   # a specific repo
 | Flag | Description |
 |---|---|
 | `--base <branch>` | Base branch to create the new branch from (default: repo's default branch) |
+| `--no-fetch` | Skip fetching latest changes before creating the worktree |
+| `--no-symlinks` | Skip creating shared IDE settings symlinks |
+
+**`branches`**
+
+| Flag | Description |
+|---|---|
+| `--no-fetch` | Skip fetching latest changes before listing branches |
+
+**`repo list`**
+
+| Flag | Description |
+|---|---|
+| `--names-only` | Print only repository names, one per line (useful for scripting) |
 
 **`remove`**
 
@@ -205,8 +243,10 @@ For example, `feature/login` becomes `feature-login`.
 
 ### Automatic fetching
 
-`add` and `prune` automatically run `git fetch` before performing their
-operations to ensure they work with the latest remote state.
+`add`, `branches`, and `prune` automatically run `git fetch` before performing
+their operations to ensure they work with the latest remote state. Use
+`--no-fetch` with `add` or `branches` to skip this (useful when you've already
+fetched or want faster execution).
 
 ### Branch cleanup
 
