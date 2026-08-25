@@ -26,9 +26,11 @@ with --base).`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		baseBranch, _ := cmd.Flags().GetString("base")
 		noSymlinks, _ := cmd.Flags().GetBool("no-symlinks")
+		noFetch, _ := cmd.Flags().GetBool("no-fetch")
 		return worktree.Add(args[0], args[1], worktree.AddOptions{
 			BaseBranch: baseBranch,
 			NoSymlinks: noSymlinks,
+			NoFetch:    noFetch,
 		})
 	},
 }
@@ -37,5 +39,6 @@ func init() {
 	rootCmd.AddCommand(addCmd)
 	addCmd.Flags().String("base", "", "base branch to create the new branch from (default: repo's default branch)")
 	addCmd.Flags().Bool("no-symlinks", false, "skip creating shared IDE settings symlinks")
+	addCmd.Flags().Bool("no-fetch", false, "skip fetching latest changes before creating worktree")
 	_ = addCmd.RegisterFlagCompletionFunc("base", allBranchNames)
 }

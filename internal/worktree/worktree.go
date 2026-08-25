@@ -32,6 +32,7 @@ type Info struct {
 type AddOptions struct {
 	BaseBranch string
 	NoSymlinks bool
+	NoFetch    bool
 }
 
 // RemoveOptions configures worktree removal.
@@ -70,9 +71,11 @@ func Add(repoName, branchName string, opts AddOptions) error {
 	}
 
 	// Fetch latest before creating worktree
-	fmt.Printf("Fetching latest changes...\n")
-	if err := git.Fetch(bareDir); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: fetch failed: %v\n", err)
+	if !opts.NoFetch {
+		fmt.Printf("Fetching latest changes...\n")
+		if err := git.Fetch(bareDir); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: fetch failed: %v\n", err)
+		}
 	}
 
 	// Check if branch already exists locally
